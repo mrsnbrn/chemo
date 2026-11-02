@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Imus Chemotherapy Center</title>
+  <script>
+    (function() {
+      try {
+        var saved = localStorage.getItem('imus_chemo_theme');
+        if (saved === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else if (saved === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- 0. Clinical Authentication Gateway (Username & Password before opening) -->
+  <div id="login-gateway" class="login-gateway-overlay">
+    <div class="login-card">
+      <div class="login-top-bar">
+        <button type="button" class="btn-login-theme" id="btn-theme-toggle-login" title="Toggle Dark/Light Mode">
+          <span class="theme-icon-slot">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </span>
+          <span class="theme-text-slot">Dark Mode</span>
+        </button>
+      </div>
+      <div class="login-brand-header">
+        <div class="login-logo-wrapper">
+          <img src="logo.png" alt="Imus Chemotherapy Center" class="login-logo-img">
+        </div>
+        <h1 class="login-title">Imus Chemotherapy Center</h1>
+        <p class="login-subtitle">Oncology Electronic Medical Records &amp; Infusion Suite</p>
+      </div>
+
+      <div class="login-security-banner">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Secure Medical Gateway &bull; Clinical Credentials Required</span>
+      </div>
+
+      <div id="login-error-alert" class="login-alert-danger" style="display: none;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="login-error-text">Invalid username or password. Please verify your clinical credentials.</span>
+      </div>
+
+      <form id="form-login" class="login-form">
+        <div class="login-field-group">
+          <label class="login-field-label" for="login-username">Staff Username</label>
+          <div class="login-input-container">
+            <svg class="login-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <input type="text" id="login-username" class="login-input" placeholder="e.g. admin or nurse" autocomplete="username" required>
+          </div>
+        </div>
+
+        <div class="login-field-group">
+          <label class="login-field-label" for="login-password">Password</label>
+          <div class="login-input-container">
+            <svg class="login-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input type="password" id="login-password" class="login-input" placeholder="Enter password" autocomplete="current-password" required>
+            <button type="button" class="btn-toggle-password" id="btn-toggle-password" title="Show/Hide Password" tabindex="-1">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-login-submit" id="btn-login-submit">
+          <span>Sign In to Clinical Suite</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </form>
+
+      <div class="login-quick-accounts">
+        <div class="login-quick-header">Select Account to Test:</div>
+        <div class="login-quick-grid">
+          <button type="button" class="login-quick-card doctor" id="btn-quick-admin">
+            <div class="quick-card-badge">Administrator</div>
+            <div class="quick-card-name">Administrator</div>
+            <div class="quick-card-role">System Administrator</div>
+            <div class="quick-card-creds">User: <strong>admin</strong> | Pass: <strong>admin123</strong></div>
+            <div class="quick-card-privileges">✓ Full Rights: Edit &amp; Delete Consults &amp; Treatments</div>
+          </button>
+          <button type="button" class="login-quick-card nurse" id="btn-quick-nurse">
+            <div class="quick-card-badge nurse-badge">Guest</div>
+            <div class="quick-card-name">Guest User</div>
+            <div class="quick-card-role">Guest / View Only</div>
+            <div class="quick-card-creds">User: <strong>guest</strong> | Pass: <strong>guest123</strong></div>
+            <div class="quick-card-privileges">🔒 Restricted: View only access</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+      <!-- Mobile Close Button -->
+      <button class="sidebar-close-btn" id="btn-sidebar-close" aria-label="Close navigation">&times;</button>
+
+      <!-- Sidebar Branding: Logo, Center Name, Address & Email -->
+      <div class="sidebar-header">
+        <div class="sidebar-brand-block">
+          <div class="sidebar-logo-card">
+            <img src="logo.png" alt="Imus Chemotherapy Center">
+          </div>
+          <div class="sidebar-brand-info">
+            <div class="sidebar-brand-name">Imus Chemotherapy Center</div>
+            <div class="sidebar-brand-meta">
+              <span class="sidebar-meta-row">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                Pedro Reyes St. Malagasang I-G Imus City, Cavite 4103
+              </span>
+              <span class="sidebar-meta-row">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                <a href="mailto:imuscenter@wehopemedical.com" class="sidebar-meta-email-link">imuscenter@wehopemedical.com</a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">Clinical Unit</div>
+        <button class="nav-item active" data-view="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" data-view="patients">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          <span>Patients</span>
+          <span class="nav-badge" id="nav-patient-count">0</span>
+        </button>
+        <button class="nav-item" data-view="consultations">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
+          <span>Consultations</span>
+          <span class="nav-badge" id="nav-consult-count">0</span>
+        </button>
+        <button class="nav-item" data-view="treatments">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 2 4 4-14 14H4v-4L18 2z"></path><path d="m14.5 5.5 4 4"></path><path d="M4 20h16"></path></svg>
+          <span>Chemo Infusions</span>
+          <span class="nav-badge" id="nav-tx-count">0</span>
+        </button>
+
+        <div class="nav-section-title">Reports &amp; Data</div>
+        <button class="nav-item" data-view="reports">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          <span>Reports &amp; Analytics</span>
+        </button>
+        <button class="nav-item" data-view="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <span>Backup &amp; Settings</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <!-- Sidebar Logged In User Card -->
+        <div class="sidebar-user-card" id="sidebar-user-card">
+          <div class="sidebar-user-avatar" id="sidebar-user-avatar">ER</div>
+          <div class="sidebar-user-info">
+            <div class="sidebar-user-name" id="sidebar-user-name">Dr. Evelyn Reed, MD</div>
+            <div class="sidebar-user-role" id="sidebar-user-role">Authorized Oncologist</div>
+          </div>
+          <button class="sidebar-logout-btn" id="btn-logout-sidebar" title="Log Out of System">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </div>
+        <div class="unit-status-indicator">
+          <span class="status-dot"></span>
+          <span>Imus Chemotherapy Center Active</span>
+        </div>
+        <div style="font-size: 0.72rem; color: #bae6fd;">
+          Imus Chemotherapy Center<br>Clinical Record Suite v2.5
+        </div>
+      </div>
+    </aside>
+
+    <!-- Mobile Sidebar Backdrop Overlay -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop" aria-label="Close navigation overlay"></div>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+      <!-- Top Sticky Header -->
+      <header class="top-header">
+        <div class="header-left">
+          <button class="btn btn-ghost mobile-menu-btn" id="mobile-menu-toggle" aria-label="Toggle menu">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          </button>
+          <div class="header-search">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="global-search-input" placeholder="Search patients by MRN, Name, or Cancer type...">
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <button class="btn btn-primary" id="btn-quick-new-patient">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <span>Register Patient</span>
+          </button>
+          <button class="btn btn-secondary" id="btn-quick-new-consult">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            <span>Log Consult</span>
+          </button>
+          <button class="btn btn-secondary" id="btn-quick-new-tx">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 2 4 4-14 14H4v-4L18 2z"></path></svg>
+            <span>Log Chemo</span>
+          </button>
+
+          <!-- Dark / Light Theme Toggle -->
+          <button type="button" class="btn btn-secondary btn-theme-toggle" id="btn-theme-toggle" title="Toggle Dark/Light Mode" aria-label="Toggle Dark/Light Mode">
+            <span class="theme-icon-slot">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </span>
+            <span class="theme-text-slot">Theme</span>
+          </button>
+
+          <!-- Top Header Logged In User Pill -->
+          <div class="user-session-pill" id="user-session-pill">
+            <div class="user-avatar-circle" id="user-header-avatar">ER</div>
+            <div class="user-session-meta">
+              <div class="user-session-name" id="user-header-name">Dr. Evelyn Reed, MD</div>
+              <div class="user-session-role-badge" id="user-header-role">Authorized Oncologist</div>
+            </div>
+            <button class="btn-logout" id="btn-logout-header" title="Log Out">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Content Views Body -->
+      <main class="content-body">
+        
+        <!-- 1. DASHBOARD VIEW -->
+        <section id="view-dashboard" class="view-section active">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h2>Imus Chemotherapy Center - Dashboard</h2>
+              <p>Real-time clinical summary, patient clearances, and infusion status</p>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-secondary" onclick="window.print()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                <span>Print Daily Roster</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Key Stats Cards -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>Registered Patients</p>
+                <h3 id="stat-total-patients">0</h3>
+                <div class="stat-subtext" id="stat-active-chemo-sub">0 on active chemotherapy</div>
+              </div>
+              <div class="stat-icon blue">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>Consultations Logged</p>
+                <h3 id="stat-total-consults">0</h3>
+                <div class="stat-subtext" id="stat-clearance-rate">Pre-chemo clearances</div>
+              </div>
+              <div class="stat-icon green">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>Chemo Treatments</p>
+                <h3 id="stat-total-tx">0</h3>
+                <div class="stat-subtext">Infusion sessions logged</div>
+              </div>
+              <div class="stat-icon purple">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 2 4 4-14 14H4v-4L18 2z"></path><path d="m14.5 5.5 4 4"></path></svg>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>Treatment Tolerance</p>
+                <h3 id="stat-tolerance-rate">100%</h3>
+                <div class="stat-subtext">Uneventful Infusions</div>
+              </div>
+              <div class="stat-icon green">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Infusions & Recent Consultations Split -->
+          <div class="dashboard-split-grid">
+            <!-- Left: Current / Recent Infusions (Yellow Container Theme) -->
+            <div class="panel" style="border-top: 4px solid #eab308; box-shadow: 0 2px 8px rgba(234, 179, 8, 0.08);">
+              <div class="panel-header" style="background: #fefce8; border-bottom: 1.5px solid #fde047;">
+                <div class="panel-title" style="color: #713f12;">
+                  <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #eab308; margin-right: 4px;"></span>
+                  <span>Recent Chemotherapy Infusions</span>
+                </div>
+                <button class="btn btn-sm btn-ghost" onclick="app.navigateTo('treatments')">View All Treatments →</button>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Patient</th>
+                      <th>Regimen & Cycle</th>
+                      <th>Date</th>
+                      <th>Tolerance</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboard-recent-tx-table">
+                    <!-- Dynamic -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Right: Pre-Chemo Consultations & Clearance status (Light Green Container Theme) -->
+            <div class="panel" style="border-top: 4px solid #16a34a; box-shadow: 0 2px 8px rgba(22, 163, 74, 0.08);">
+              <div class="panel-header" style="background: #f0fdf4; border-bottom: 1.5px solid #86efac;">
+                <div class="panel-title" style="color: #14532d;">
+                  <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #16a34a; margin-right: 4px;"></span>
+                  <span>Pre-Chemo Clearances & Notes</span>
+                </div>
+                <button class="btn btn-sm btn-ghost" onclick="app.navigateTo('consultations')">All Consults →</button>
+              </div>
+              <div class="panel-body" style="padding: 1rem;" id="dashboard-consultations-feed">
+                <!-- Dynamic feed -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Clinical Safety / Lab Alerts Notification Box -->
+          <div class="panel">
+            <div class="panel-header" style="background-color: #fffbeb;">
+              <div class="panel-title" style="color: #92400e;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                <span>Chemotherapy Safety & Toxicity Watchlist</span>
+              </div>
+              <span class="badge badge-warning">Active Protocols</span>
+            </div>
+            <div class="panel-body" id="dashboard-toxicity-alerts">
+              <!-- Dynamically populated safety warnings -->
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. PATIENTS DIRECTORY VIEW -->
+        <section id="view-patients" class="view-section">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h2>Oncology Patients Directory</h2>
+              <p>Register, monitor, edit, and manage cancer patients receiving systemic therapies</p>
+            </div>
+            <button class="btn btn-primary" id="btn-add-patient-main">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span>Register New Patient</span>
+            </button>
+          </div>
+
+          <!-- Toolbar & Filters -->
+          <div class="panel">
+            <div class="panel-body" style="padding: 1rem 1.5rem;">
+              <div class="toolbar" style="margin-bottom: 0;">
+                <div class="filter-group">
+                  <input type="text" id="patient-search-filter" class="input-control" placeholder="Search by name, MRN, diagnosis..." style="min-width: 260px;">
+                  
+                  <select id="patient-cancer-filter" class="select-control">
+                    <option value="">All Cancer Types</option>
+                    <option value="Breast">Breast</option>
+                    <option value="Colon">Colon & Rectal</option>
+                    <option value="Cervical">Cervical</option>
+                    <option value="Lung">Lung</option>
+                    <option value="Ovarian">Ovarian</option>
+                    <option value="Lymphoma">Lymphoma</option>
+                    <option value="Head & Neck">Head & Neck</option>
+                    <option value="Gastric">Gastric / Stomach</option>
+                    <option value="Pancreatic">Pancreatic</option>
+                    <option value="Bladder">Bladder & Urothelial</option>
+                    <option value="Endometrial">Endometrial & Uterine</option>
+                    <option value="Sarcoma">Sarcoma</option>
+                    <option value="Other">Other / Evaluation</option>
+                    <option value="Not specified">Not specified</option>
+                  </select>
+
+                  <select id="patient-status-filter" class="select-control">
+                    <option value="">All Statuses</option>
+                    <option value="Active">Active</option>
+                    <option value="Not Active">Not Active</option>
+                    <option value="Deceased">Deceased</option>
+                    <option value="Graduated">Graduated</option>
+                    <option value="Under Surveillance">Under Surveillance</option>
+                  </select>
+                </div>
+                <div>
+                  <span id="patient-filtered-count" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">Showing 0 patients</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Patient Table -->
+          <div class="panel">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>MRN / PhilHealth</th>
+                    <th>Last Name</th>
+                    <th>First Name</th>
+                    <th>Middle Name</th>
+                    <th>Address</th>
+                    <th>Age / Sex</th>
+                    <th>Civil Status</th>
+                    <th>Religion</th>
+                    <th>Diagnosis & Staging</th>
+                    <th>Current Regimen</th>
+                    <th>BSA</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="patient-table-body">
+                  <!-- Dynamic rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. PATIENT 360° EHR CHART VIEW -->
+        <section id="view-patient-chart" class="view-section">
+          <div class="chart-top-toolbar">
+            <button class="btn btn-secondary btn-sm" onclick="app.navigateTo('patients')">
+              ← Back to Patient Directory
+            </button>
+            <div class="chart-top-toolbar-actions">
+              <button class="btn btn-primary btn-sm" id="btn-chart-log-consult">
+                + Log Consultation
+              </button>
+              <button class="btn btn-success btn-sm" id="btn-chart-log-tx">
+                + Log Chemo Infusion
+              </button>
+              <button class="btn btn-secondary btn-sm" id="btn-chart-edit-patient">
+                Edit Patient Info
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="window.print()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                Print Chart
+              </button>
+            </div>
+          </div>
+
+          <!-- Patient Chart Hero -->
+          <div class="patient-chart-header" id="patient-chart-hero">
+            <!-- Dynamic Content -->
+          </div>
+
+          <!-- Allergies Alert Banner -->
+          <div id="chart-allergy-banner" class="allergy-alert" style="display: none;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span id="chart-allergy-text">Critical Allergy Alert</span>
+          </div>
+
+          <!-- Chart Tabs -->
+          <div class="tabs-nav">
+            <button class="tab-btn active" data-chart-tab="timeline">Full Medical Timeline</button>
+            <button class="tab-btn" data-chart-tab="consultations">🌿 Consultations & Clearances (<span id="chart-tab-consult-count">0</span>)</button>
+            <button class="tab-btn" data-chart-tab="treatments">🟡 Chemo Treatments (<span id="chart-tab-tx-count">0</span>)</button>
+            <button class="tab-btn" data-chart-tab="clinical-info">Clinical Profile & Vitals</button>
+          </div>
+
+          <!-- Chart Tab Panes -->
+          <div id="chart-pane-timeline" class="tab-pane active">
+            <!-- Timeline View Filter & Visual Legend -->
+            <div class="timeline-toolbar" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem; background: #ffffff; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid var(--border);">
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em;">Filter Timeline:</span>
+                <button type="button" class="btn btn-sm timeline-filter-btn active" data-timeline-filter="all" id="btn-timeline-all">
+                  Show All (<span id="timeline-count-all">0</span>)
+                </button>
+                <button type="button" class="btn btn-sm timeline-filter-btn" data-timeline-filter="consultation" id="btn-timeline-consult" style="background: #f0fdf4; border: 1.5px solid #86efac; color: #166534;">
+                  🌿 Consultations (<span id="timeline-count-consult">0</span>)
+                </button>
+                <button type="button" class="btn btn-sm timeline-filter-btn" data-timeline-filter="treatment" id="btn-timeline-tx" style="background: #fefce8; border: 1.5px solid #fde047; color: #854d0e;">
+                  🟡 Chemo Treatments (<span id="timeline-count-tx">0</span>)
+                </button>
+              </div>
+              <div class="timeline-legend" style="display: flex; gap: 1rem; font-size: 0.75rem; color: #475569;">
+                <span style="display: flex; align-items: center; gap: 0.4rem;">
+                  <span style="width: 14px; height: 14px; background-color: #f0fdf4; border: 2px solid #22c55e; border-radius: 3px; display: inline-block;"></span>
+                  <span><strong>Consultations</strong> (Light Green)</span>
+                </span>
+                <span style="display: flex; align-items: center; gap: 0.4rem;">
+                  <span style="width: 14px; height: 14px; background-color: #fefce8; border: 2px solid #eab308; border-radius: 3px; display: inline-block;"></span>
+                  <span><strong>Chemo Treatments</strong> (Yellow)</span>
+                </span>
+              </div>
+            </div>
+
+            <div class="timeline" id="chart-timeline-container">
+              <!-- Chronological feed of consults and treatments -->
+            </div>
+          </div>
+
+          <div id="chart-pane-consultations" class="tab-pane">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; background: #f0fdf4; padding: 0.75rem 1.25rem; border-radius: 8px; border: 1.5px solid #86efac; border-left: 6px solid #16a34a; flex-wrap: wrap; gap: 0.5rem;">
+              <div>
+                <strong style="color: #14532d; font-size: 0.95rem;">🌿 Patient Consultations & Pre-Chemo Clearances</strong>
+                <div style="font-size: 0.78rem; color: #166534;">Comprehensive oncological evaluations, vital signs, hematology thresholds, and clearance orders</div>
+              </div>
+              <button class="btn btn-sm btn-primary" onclick="app.openNewConsultModal()" style="background: #16a34a; border-color: #15803d;">
+                + Log Consultation
+              </button>
+            </div>
+            <div id="chart-consultations-container">
+              <!-- Detailed cards for consultations -->
+            </div>
+          </div>
+
+          <div id="chart-pane-treatments" class="tab-pane">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; background: #fefce8; padding: 0.75rem 1.25rem; border-radius: 8px; border: 1.5px solid #fde047; border-left: 6px solid #eab308; flex-wrap: wrap; gap: 0.5rem;">
+              <div>
+                <strong style="color: #713f12; font-size: 0.95rem;">🟡 Chemotherapy Treatments & Infusion Flowsheets</strong>
+                <div style="font-size: 0.78rem; color: #854d0e;">Documented antineoplastic cycles, dual independent nurse verifications, and acute tolerance grading</div>
+              </div>
+              <button class="btn btn-sm btn-primary" onclick="app.openNewTxModal()" style="background: #eab308; border-color: #ca8a04; color: #713f12;">
+                + Log Chemo Infusion
+              </button>
+            </div>
+            <div id="chart-treatments-container">
+              <!-- Detailed cards for chemotherapy infusions -->
+            </div>
+          </div>
+
+          <div id="chart-pane-clinical-info" class="tab-pane">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">Oncology & Baseline Details</div>
+              </div>
+              <div class="panel-body" id="chart-profile-details">
+                <!-- Comprehensive demographics & clinical notes -->
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. CONSULTATIONS VIEW -->
+        <section id="view-consultations" class="view-section">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h2>Oncological Consultations & Pre-Chemo Clearances</h2>
+              <p>Log and review physician evaluations, hematology clearances, and toxicity grading</p>
+            </div>
+            <button class="btn btn-primary" id="btn-add-consult-main">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span>+ Log New Consultation</span>
+            </button>
+          </div>
+
+          <!-- Filter Toolbar (Light Green Accent) -->
+          <div class="panel" style="border-top: 4px solid #16a34a; background: #f0fdf4; border-color: #86efac;">
+            <div class="panel-body" style="padding: 1rem 1.5rem;">
+              <div class="toolbar" style="margin-bottom: 0;">
+                <div class="filter-group">
+                  <input type="text" id="consult-search-filter" class="input-control" placeholder="Search notes, doctor, patient..." style="min-width: 260px; background: #ffffff;">
+                  
+                  <select id="consult-decision-filter" class="select-control" style="background: #ffffff;">
+                    <option value="">All Decisions</option>
+                    <option value="CLEARED">Cleared for Chemo</option>
+                    <option value="DOSE_REDUCED">Cleared with Dose Reduction</option>
+                    <option value="DELAYED">Cycle Delayed / Withheld</option>
+                    <option value="TERMINATED">Adjusted / Terminated</option>
+                  </select>
+
+                  <select id="consult-patient-filter" class="select-control" style="background: #ffffff;">
+                    <option value="">All Patients</option>
+                    <!-- Populated dynamically -->
+                  </select>
+                </div>
+                <span id="consult-count-label" style="font-size: 0.85rem; color: #166534; font-weight: 700;">0 Consultations</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Consultations Table -->
+          <div class="panel" style="border-top: 3px solid #16a34a;">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date & Time</th>
+                    <th>Patient</th>
+                    <th>Consulting Oncologist</th>
+                    <th>Type</th>
+                    <th>Vitals & ANC</th>
+                    <th>Decision</th>
+                    <th>Management Plan Summary</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="consultations-table-body">
+                  <!-- Dynamic rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. CHEMO INFUSIONS VIEW -->
+        <section id="view-treatments" class="view-section">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h2>Chemotherapy Infusion Logs</h2>
+              <p>Track administered regimens, cycles, premeds, dual nurse verifications, and infusion safety</p>
+            </div>
+            <button class="btn btn-primary" id="btn-add-tx-main">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span>+ Log Chemo Treatment</span>
+            </button>
+          </div>
+
+          <!-- Filter Toolbar (Yellow Accent) -->
+          <div class="panel" style="border-top: 4px solid #eab308; background: #fefce8; border-color: #fde047;">
+            <div class="panel-body" style="padding: 1rem 1.5rem;">
+              <div class="toolbar" style="margin-bottom: 0;">
+                <div class="filter-group">
+                  <input type="text" id="tx-search-filter" class="input-control" placeholder="Search protocol, drug, patient..." style="min-width: 260px; background: #ffffff;">
+                  
+                  <select id="tx-patient-filter" class="select-control" style="background: #ffffff;">
+                    <option value="">All Patients</option>
+                    <!-- Populated dynamically -->
+                  </select>
+
+                  <select id="tx-regimen-filter" class="select-control" style="background: #ffffff;">
+                    <option value="">All Regimens</option>
+                    <option value="folfox6">mFOLFOX6</option>
+                    <option value="ac-t">AC-T</option>
+                    <option value="carbo-pacli">Carboplatin + Paclitaxel</option>
+                    <option value="r-chop">R-CHOP</option>
+                    <option value="pembrolizumab">Pembrolizumab</option>
+                  </select>
+                </div>
+                <span id="tx-count-label" style="font-size: 0.85rem; color: #854d0e; font-weight: 700;">0 Treatments</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Treatments Table -->
+          <div class="panel" style="border-top: 3px solid #eab308;">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Patient</th>
+                    <th>Regimen & Protocol</th>
+                    <th>Cycle Progress</th>
+                    <th>Drugs Administered</th>
+                    <th>Supervising Staff</th>
+                    <th>Tolerance & Safety</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="treatments-table-body">
+                  <!-- Dynamic rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. REPORTS & ANALYTICS VIEW -->
+        <section id="view-reports" class="view-section">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h2>Clinical Reports & Periodic Analytics</h2>
+              <p>Generate daily, weekly, monthly, and yearly summaries per patient, consultation, and chemotherapy treatment</p>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <button class="btn btn-secondary" onclick="window.print()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                <span>Print Official Report</span>
+              </button>
+              <button class="btn btn-primary" id="btn-export-report-csv">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Export Report to CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Report Period & Filter Toolbar Panel -->
+          <div class="panel no-print">
+            <div class="panel-body" style="padding: 1.25rem 1.5rem;">
+              <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <!-- Period Pill Selector -->
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                  <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                    <span style="font-size: 0.825rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
+                      Reporting Period:
+                    </span>
+                    <div class="period-pill-group" id="report-period-pills">
+                      <button class="period-pill active" data-period="monthly">Monthly</button>
+                      <button class="period-pill" data-period="daily">Daily</button>
+                      <button class="period-pill" data-period="weekly">Weekly</button>
+                      <button class="period-pill" data-period="yearly">Yearly</button>
+                      <button class="period-pill" data-period="custom">Custom Range</button>
+                      <button class="period-pill" data-period="all">All Records</button>
+                    </div>
+                  </div>
+
+                  <!-- Patient Filter in Report -->
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <label for="report-patient-filter" style="font-size: 0.825rem; font-weight: 600; color: var(--text-muted); white-space: nowrap;">Patient Focus:</label>
+                    <select id="report-patient-filter" class="select-control" style="min-width: 220px;">
+                      <option value="">All Patients (Center Summary)</option>
+                      <!-- Populated dynamically -->
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Period Date Controls Bar -->
+                <div id="report-date-controls" style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; background-color: #f8fafc; padding: 0.75rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                  <!-- Populated dynamically based on period selection -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Report Scope Navigation Tabs -->
+          <div class="report-scope-nav no-print" id="report-scope-tabs">
+            <button class="report-scope-btn active" data-scope="overview">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+              <span>Executive Overview</span>
+            </button>
+            <button class="report-scope-btn" data-scope="patients">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+              <span>Per-Patient Report (<span id="rep-badge-patients">0</span>)</span>
+            </button>
+            <button class="report-scope-btn" data-scope="consultations">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path></svg>
+              <span>Consultations Report (<span id="rep-badge-consults">0</span>)</span>
+            </button>
+            <button class="report-scope-btn" data-scope="treatments">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 2 4 4-14 14H4v-4L18 2z"></path></svg>
+              <span>Chemo Treatments Report (<span id="rep-badge-tx">0</span>)</span>
+            </button>
+          </div>
+
+          <!-- Dynamic Report Content Area (Formatted for screen and print) -->
+          <div id="report-output-container">
+            <!-- Dynamic Clinical Report Content -->
+          </div>
+        </section>
+
+        <!-- 7. BACKUP & SETTINGS VIEW -->
+        <section id="view-settings" class="view-section">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h2>Data Management, Backup & Settings</h2>
+              <p>Export database, import backups, and reset demo data</p>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
+            <!-- Display Appearance & Theme -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                  <span>Display Appearance &amp; Theme</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem;">
+                  Choose your interface theme. Optimized for clinical readability, lab reports, and low-glare infusion monitoring.
+                </p>
+                <div class="theme-picker-group">
+                  <button type="button" class="theme-option-card active" id="theme-card-light" data-set-theme="light">
+                    <div class="theme-option-preview light-preview">
+                      <div class="preview-header"></div>
+                      <div class="preview-content">
+                        <span class="preview-line"></span>
+                        <span class="preview-line short"></span>
+                      </div>
+                    </div>
+                    <div class="theme-option-label">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                      <strong>Light Mode</strong>
+                    </div>
+                  </button>
+
+                  <button type="button" class="theme-option-card" id="theme-card-dark" data-set-theme="dark">
+                    <div class="theme-option-preview dark-preview">
+                      <div class="preview-header"></div>
+                      <div class="preview-content">
+                        <span class="preview-line"></span>
+                        <span class="preview-line short"></span>
+                      </div>
+                    </div>
+                    <div class="theme-option-label">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                      <strong>Dark Mode</strong>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Export JSON -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  <span>Export Center Data</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem;">
+                  Download complete JSON backup containing all registered patients, consultation records, and chemotherapy treatment sessions.
+                </p>
+                <button class="btn btn-primary" id="btn-export-json">
+                  Download Full Backup (.json)
+                </button>
+              </div>
+            </div>
+
+            <!-- Import JSON -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                  <span>Restore from Backup</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem;">
+                  Import and restore clinical database from a previously saved JSON backup file.
+                </p>
+                <input type="file" id="import-json-input" accept=".json" style="display: none;">
+                <button class="btn btn-secondary" onclick="document.getElementById('import-json-input').click()">
+                  Select Backup File...
+                </button>
+              </div>
+            </div>
+
+            <!-- Demo Data Loader -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  <span>Oncology Clinical Demo Data</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem;">
+                  Pre-load authentic clinical cases (Breast AC-T, Colon FOLFOX, NSCLC Pembrolizumab, DLBCL R-CHOP) with pre-chemo lab clearances and infusion records.
+                </p>
+                <button class="btn btn-secondary" id="btn-load-demo-data">
+                  Reset & Load Demo Cases
+                </button>
+              </div>
+            </div>
+
+            <!-- Clear All Data -->
+            <div class="panel">
+              <div class="panel-header" style="background-color: var(--danger-bg);">
+                <div class="panel-title" style="color: var(--danger);">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  <span>Erase Database</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <p style="font-size: 0.875rem; color: var(--danger); margin-bottom: 1rem;">
+                  Permanently erase all clinical records, patients, and logs from browser storage.
+                </p>
+                <button class="btn btn-danger" id="btn-clear-database">
+                  Clear All Clinical Data
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       MODALS
+       =================================================================== -->
+
+  <!-- 1. Patient Register / Edit Modal -->
+  <div class="modal-backdrop" id="modal-patient">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-patient-title">Register New Oncology Patient</h3>
+        <button class="modal-close-btn" data-close-modal="modal-patient">&times;</button>
+      </div>
+      <form id="form-patient">
+        <input type="hidden" id="patient-id" value="">
+        <div class="modal-body">
+          <div class="form-grid">
+            
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              <span>Patient Identification & Demographics</span>
+            </div>
+
+            <!-- Patient Photo Upload Section -->
+            <div class="col-span-2">
+              <label class="form-label">Patient Photo</label>
+              <div class="photo-upload-container">
+                <div class="photo-preview-box" id="patient-photo-preview-box">
+                  <div id="patient-photo-placeholder" class="photo-preview-placeholder">
+                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                  </div>
+                  <img id="patient-photo-preview-img" src="" alt="Preview" style="display: none; width: 100%; height: 100%; object-fit: cover;">
+                </div>
+                <div class="photo-upload-actions">
+                  <div class="photo-upload-buttons">
+                    <button type="button" class="btn btn-sm btn-secondary" id="btn-upload-patient-photo">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                      <span>Upload Photo</span>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-ghost" id="btn-remove-patient-photo" style="display: none; color: var(--danger);">
+                      <span>Remove</span>
+                    </button>
+                  </div>
+                  <input type="file" id="patient-photo-input" accept="image/*" style="display: none;">
+                  <input type="hidden" id="patient-photo-data" name="patient-photo" value="">
+                  <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                    Frontal portrait (JPG, PNG, WebP). Scaled automatically for optimal storage.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-reg-date">Registration Date <span class="required">*</span></label>
+              <input type="date" id="patient-reg-date" name="patient-reg-date" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-mrn">MRN (Medical Record Number) <span class="required">*</span></label>
+              <input type="text" id="patient-mrn" name="patient-mrn" class="form-control" required placeholder="e.g. ONC-2026-0501">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-lastname">Last Name <span class="required">*</span></label>
+              <input type="text" id="patient-lastname" name="patient-lastname" class="form-control" required placeholder="e.g. dela Cruz">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-firstname">First Name <span class="required">*</span></label>
+              <input type="text" id="patient-firstname" name="patient-firstname" class="form-control" required placeholder="e.g. Juan">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-middlename">Middle Name</label>
+              <input type="text" id="patient-middlename" name="patient-middlename" class="form-control" placeholder="e.g. Santos">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-address">Residential Address</label>
+              <input type="text" id="patient-address" name="patient-address" class="form-control" placeholder="e.g. Blk 15 Lot 8, Bucandala IV, Imus City, Cavite">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-philhealth">PhilHealth Number (PIN)</label>
+              <input type="text" id="patient-philhealth" name="patient-philhealth" class="form-control" placeholder="e.g. 12-050123456-7" maxlength="20">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-dob">Date of Birth <span class="required">*</span></label>
+              <input type="date" id="patient-dob" name="patient-dob" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-gender">Biological Sex <span class="required">*</span></label>
+              <select id="patient-gender" name="patient-gender" class="form-control" required>
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-bloodtype">Blood Type</label>
+              <select id="patient-bloodtype" name="patient-bloodtype" class="form-control">
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+                <option value="Unknown">Unknown</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-civil-status">Civil Status</label>
+              <select id="patient-civil-status" name="patient-civil-status" class="form-control">
+                <option value="Single">Single</option>
+                <option value="Married">Married</option>
+                <option value="Widowed">Widowed</option>
+                <option value="Separated">Separated</option>
+                <option value="Divorced">Divorced</option>
+                <option value="Not specified">Not specified</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-religion">Religion</label>
+              <input type="text" id="patient-religion" name="patient-religion" class="form-control" placeholder="e.g. Roman Catholic, Christian, INC" list="religion-suggestions">
+              <datalist id="religion-suggestions">
+                <option value="Roman Catholic">
+                <option value="Christian">
+                <option value="Iglesia ni Cristo (INC)">
+                <option value="Born Again">
+                <option value="Seventh-day Adventist">
+                <option value="Jehovah's Witness">
+                <option value="Baptist">
+                <option value="Islam">
+                <option value="Aglipay">
+                <option value="Not specified">
+              </datalist>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-phone">Contact Phone</label>
+              <input type="text" id="patient-phone" name="patient-phone" class="form-control" placeholder="09XX-XXX-XXXX">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-email">Email Address</label>
+              <input type="email" id="patient-email" name="patient-email" class="form-control" placeholder="patient@example.com">
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="patient-emergency-contact">Emergency Contact (Name & Relationship)</label>
+              <input type="text" id="patient-emergency-contact" name="patient-emergency-contact" class="form-control" placeholder="e.g. Maria dela Cruz (Spouse) - 0917-123-4567">
+            </div>
+
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+              <span>Oncology Clinical Profile</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-cancer-type">Primary Cancer Category <span class="required">*</span></label>
+              <select id="patient-cancer-type" name="patient-cancer-type" class="form-control" required>
+                <option value="Breast">Breast Cancer</option>
+                <option value="Colon & Rectal">Colon & Rectal Cancer</option>
+                <option value="Cervical">Cervical Cancer</option>
+                <option value="Lung">Lung Cancer</option>
+                <option value="Ovarian">Ovarian / Gynecologic</option>
+                <option value="Lymphoma">Lymphoma</option>
+                <option value="Head & Neck">Head & Neck</option>
+                <option value="Gastric">Gastric / Gastroesophageal</option>
+                <option value="Pancreatic">Pancreatic</option>
+                <option value="Bladder & Urothelial">Bladder & Urothelial</option>
+                <option value="Endometrial & Uterine">Endometrial & Uterine</option>
+                <option value="Sarcoma">Sarcoma</option>
+                <option value="Prostate">Prostate Cancer</option>
+                <option value="Melanoma">Melanoma</option>
+                <option value="Other">Other Malignancy</option>
+                <option value="Not specified">Not specified</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-stage">Cancer Stage <span class="required">*</span></label>
+              <select id="patient-stage" name="patient-stage" class="form-control" required>
+                <option value="Stage I">Stage I</option>
+                <option value="Stage IA">Stage IA</option>
+                <option value="Stage IB">Stage IB</option>
+                <option value="Stage II">Stage II</option>
+                <option value="Stage IIA">Stage IIA</option>
+                <option value="Stage IIB">Stage IIB</option>
+                <option value="Stage III">Stage III</option>
+                <option value="Stage IIIA">Stage IIIA</option>
+                <option value="Stage IIIB">Stage IIIB</option>
+                <option value="Stage IIIC">Stage IIIC</option>
+                <option value="Stage IV">Stage IV</option>
+                <option value="Stage IVA">Stage IVA</option>
+                <option value="Stage IVB">Stage IVB</option>
+                <option value="Stage IV (Metastatic)">Stage IV (Metastatic)</option>
+                <option value="Recurrent">Recurrent Disease</option>
+                <option value="Clinical Stage Stated">Clinical Stage Stated</option>
+                <option value="Not specified">Not specified</option>
+              </select>
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="patient-diagnosis">Specific Diagnosis & Histology <span class="required">*</span></label>
+              <input type="text" id="patient-diagnosis" name="patient-diagnosis" class="form-control" required placeholder="e.g. Invasive Lobular Carcinoma, Grade 2">
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="patient-markers">Biomarkers & Molecular Targets</label>
+              <input type="text" id="patient-markers" name="patient-markers" class="form-control" placeholder="e.g. ER+, PR+, HER2/neu Negative, Ki-67 30% / EGFR Exon 19">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-intent">Treatment Intent</label>
+              <select id="patient-intent" name="patient-intent" class="form-control">
+                <option value="Adjuvant">Adjuvant (Post-surgery)</option>
+                <option value="Neoadjuvant">Neoadjuvant (Pre-surgery)</option>
+                <option value="Curative">Curative</option>
+                <option value="Palliative">Palliative / Systemic control</option>
+                <option value="Maintenance">Maintenance therapy</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-regimen">Active / Planned Protocol</label>
+              <input type="text" id="patient-regimen" name="patient-regimen" class="form-control" placeholder="e.g. mFOLFOX6 or AC-T">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-oncologist">Primary Medical Oncologist <span class="required">*</span></label>
+              <input type="text" id="patient-oncologist" name="patient-oncologist" class="form-control" required placeholder="e.g. Dr. Evelyn Reed, MD">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-nurse">Primary Oncology Nurse</label>
+              <input type="text" id="patient-nurse" name="patient-nurse" class="form-control" placeholder="e.g. Nurse Brenda Miller, RN, OCN">
+            </div>
+
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20v-6M6 20V10M18 20V4"/></svg>
+              <span>Anthropometrics & Body Surface Area (BSA)</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-height">Height (cm) <span class="required">*</span></label>
+              <input type="number" id="patient-height" name="patient-height" class="form-control" step="0.5" required placeholder="170">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-weight">Weight (kg) <span class="required">*</span></label>
+              <input type="number" id="patient-weight" name="patient-weight" class="form-control" step="0.1" required placeholder="70.5">
+            </div>
+
+            <!-- Live BSA & BMI Display Card -->
+            <div class="bsa-highlight-card">
+              <div>
+                <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: #0284c7;">Calculated Body Surface Area (Mosteller)</div>
+                <div class="bsa-val-text"><span id="form-calculated-bsa">--</span> m²</div>
+                <div style="font-size: 0.75rem; color: #64748b;">Formula: \(\sqrt{\text{Height(cm)} \times \text{Weight(kg)} / 3600}\)</div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 0.8rem; font-weight: 700; color: #64748b;">Body Mass Index</div>
+                <div style="font-size: 1.25rem; font-weight: 700; color: var(--secondary);"><span id="form-calculated-bmi">--</span> kg/m²</div>
+              </div>
+            </div>
+
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+              <span>Safety, Allergies & Status</span>
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="patient-allergies">Allergies & Drug Hypersensitivities (Enter comma-separated)</label>
+              <input type="text" id="patient-allergies" name="patient-allergies" class="form-control" placeholder="e.g. Taxanes, Penicillin, NKDA">
+              <span class="form-hint">Important: Critical chemo allergies will be flagged with high-visibility alerts on all infusion sheets.</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-ecog">Baseline ECOG Performance Status</label>
+              <select id="patient-ecog" name="patient-ecog" class="form-control">
+                <option value="0">0 - Fully active, unrestricted</option>
+                <option value="1">1 - Restricted in strenuous activity</option>
+                <option value="2">2 - Ambulatory, capable of self-care</option>
+                <option value="3">3 - Capable of only limited self-care</option>
+                <option value="4">4 - Completely disabled</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="patient-status">Center Status</label>
+              <select id="patient-status" name="patient-status" class="form-control">
+                <option value="Active">Active</option>
+                <option value="Not Active">Not Active</option>
+                <option value="Deceased">Deceased</option>
+                <option value="Graduated">Graduated</option>
+                <option value="Under Surveillance">Under Surveillance</option>
+              </select>
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="patient-comorbidities">Comorbidities & Medical History</label>
+              <input type="text" id="patient-comorbidities" name="patient-comorbidities" class="form-control" placeholder="e.g. Hypertension, Type 2 Diabetes, Mild Neuropathy">
+            </div>
+
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="modal-patient">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-patient">Save Patient Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. Consultation Logging Modal (Light Green Theme) -->
+  <div class="modal-backdrop" id="modal-consultation">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header" style="background: linear-gradient(135deg, #15803d, #16a34a); color: white;">
+        <h3 class="modal-title" id="modal-consult-title" style="color: white; display: flex; align-items: center; gap: 0.5rem;">
+          <span>🌿 Log Oncologic Consultation & Clearance</span>
+        </h3>
+        <button class="modal-close-btn" style="color: white;" data-close-modal="modal-consultation">&times;</button>
+      </div>
+      <form id="form-consultation">
+        <input type="hidden" id="consult-id" value="">
+        <div class="modal-body">
+          <div class="form-grid">
+            
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle></svg>
+              <span>Consultation Demographics</span>
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="consult-patient-search">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                Search Patient (by Name, Number, or Diagnosis) <span class="required">*</span>
+              </label>
+
+              <!-- Hidden input stores selected patient ID without needing dropdown -->
+              <input type="hidden" id="consult-patient-select" name="consult-patient-select" required>
+
+              <div style="display: flex; gap: 0.5rem; margin-bottom: 0.45rem;">
+                <input type="text" id="consult-patient-search" class="form-control" placeholder="🔍 Search by Name, MRN, PhilHealth #, or Diagnosis..." autocomplete="off" style="flex: 1;">
+                <button type="button" class="btn btn-primary" id="btn-search-consult-patient" style="white-space: nowrap; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.55rem 1.15rem; background: #16a34a; border-color: #15803d;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  <span>Search</span>
+                </button>
+              </div>
+
+              <!-- Matching results container -->
+              <div id="consult-search-results" style="display: none; margin-bottom: 0.5rem;"></div>
+
+              <!-- Selected Patient Live Profile Card (Light Green Container) -->
+              <div id="consult-selected-patient-preview" style="display: none; padding: 0.75rem 1rem; background: #f0fdf4; border: 1.5px solid #16a34a; border-radius: 8px; font-size: 0.825rem; box-shadow: 0 2px 6px rgba(22, 163, 74, 0.1);">
+                <!-- Live patient preview -->
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-type">Consultation Type <span class="required">*</span></label>
+              <select id="consult-type" name="consult-type" class="form-control" required>
+                <option value="Pre-Chemotherapy Clearance">Pre-Chemotherapy Clearance</option>
+                <option value="Initial Oncologic Workup">Initial Oncologic Workup</option>
+                <option value="Mid-Cycle Toxicity Assessment">Mid-Cycle Toxicity Assessment</option>
+                <option value="Post-Chemo Restaging & Evaluation">Post-Chemo Restaging & Evaluation</option>
+                <option value="Urgent Walk-in / Toxicity Evaluation">Urgent Walk-in / Toxicity Evaluation</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-date">Date <span class="required">*</span></label>
+              <input type="date" id="consult-date" name="consult-date" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-time">Time</label>
+              <input type="time" id="consult-time" name="consult-time" class="form-control">
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="consult-oncologist">Consulting Oncologist <span class="required">*</span></label>
+              <input type="text" id="consult-oncologist" name="consult-oncologist" class="form-control" required placeholder="e.g. Dr. Evelyn Reed, MD">
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="consult-reason">Reason for Visit / Visit Goal</label>
+              <input type="text" id="consult-reason" name="consult-reason" class="form-control" placeholder="e.g. Pre-chemo bloods clearance for Cycle 4 FOLFOX">
+            </div>
+
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              <span>Vitals on Examination</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-bp">Blood Pressure (mmHg)</label>
+              <input type="text" id="consult-bp" name="consult-bp" class="form-control" placeholder="120/80">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-pulse">Heart Rate (bpm)</label>
+              <input type="number" id="consult-pulse" name="consult-pulse" class="form-control" placeholder="72">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-temp">Temperature (°C)</label>
+              <input type="number" id="consult-temp" name="consult-temp" class="form-control" step="0.1" placeholder="36.8">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-weight">Current Weight (kg) <span class="required">*</span></label>
+              <input type="number" id="consult-weight" name="consult-weight" class="form-control" step="0.1" placeholder="70.5" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-ecog">Current ECOG Score</label>
+              <select id="consult-ecog" name="consult-ecog" class="form-control">
+                <option value="0">0 - Fully active</option>
+                <option value="1">1 - Restricted in strenuous activity</option>
+                <option value="2">2 - Ambulatory, self-care</option>
+                <option value="3">3 - Limited self-care</option>
+                <option value="4">4 - Bedbound</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-pain">Pain Score (0 to 10)</label>
+              <input type="number" id="consult-pain" name="consult-pain" class="form-control" min="0" max="10" value="0">
+            </div>
+
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m19 14-7 7-7-7"></path><path d="M12 19V3"></path></svg>
+              <span>Pre-Chemo Hematology & Organ Function Labs</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-anc">ANC (Neutrophils x10⁹/L)</label>
+              <input type="number" id="consult-anc" name="consult-anc" class="form-control" step="0.01" placeholder="e.g. 2.1 (Alert if < 1.5)">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-platelets">Platelets (x10⁹/L)</label>
+              <input type="number" id="consult-platelets" name="consult-platelets" class="form-control" placeholder="e.g. 210 (Alert if < 100)">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-hb">Hemoglobin (g/dL)</label>
+              <input type="number" id="consult-hb" name="consult-hb" class="form-control" step="0.1" placeholder="e.g. 11.5">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-creatinine">Serum Creatinine (mg/dL)</label>
+              <input type="number" id="consult-creatinine" name="consult-creatinine" class="form-control" step="0.01" placeholder="e.g. 0.90">
+            </div>
+
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>
+              <span>Clinical Evaluation & Toxicity Review</span>
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="consult-toxicity-notes">Chemo Side Effects & Toxicity Grading (Nausea, Neuropathy, Diarrhea, Fatigue)</label>
+              <input type="text" id="consult-toxicity-notes" name="consult-toxicity-notes" class="form-control" placeholder="e.g. Nausea Gr 1 (controlled), Neuropathy Gr 1 (mild cold dysesthesia), No fever">
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="consult-clinical-notes">Physical Exam & Oncology Notes <span class="required">*</span></label>
+              <textarea id="consult-clinical-notes" name="consult-clinical-notes" class="form-control" rows="3" required placeholder="Detailed clinical evaluation notes..."></textarea>
+            </div>
+
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+              <span>Clearance Decision & Management Plan</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-clearance-decision">Chemotherapy Clearance Decision <span class="required">*</span></label>
+              <select id="consult-clearance-decision" name="consult-clearance-decision" class="form-control" required>
+                <option value="CLEARED">🟢 Cleared for Scheduled Chemo</option>
+                <option value="DOSE_REDUCED">🟡 Cleared with Dose Reduction</option>
+                <option value="DELAYED">🔴 Cycle Delayed / Withheld</option>
+                <option value="TERMINATED">🟣 Regimen Changed / Terminated</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-dose-adj">Dose Adjustment (%)</label>
+              <input type="number" id="consult-dose-adj" name="consult-dose-adj" class="form-control" placeholder="0 or -20%" value="0">
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="consult-plan">Management Plan & Orders <span class="required">*</span></label>
+              <textarea id="consult-plan" name="consult-plan" class="form-control" rows="2" required placeholder="e.g. Proceed with Cycle 4. Continue ondansetron 8mg PO BID PRN. Next labs in 2 weeks."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="consult-next-date">Next Appointment Date</label>
+              <input type="date" id="consult-next-date" name="consult-next-date" class="form-control">
+            </div>
+
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="modal-consultation">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-consult">Log Consultation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. Chemotherapy Treatment & Infusion Logging Modal (Yellow Theme) -->
+  <div class="modal-backdrop" id="modal-treatment">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header" style="background: linear-gradient(135deg, #a16207, #ca8a04); color: white;">
+        <h3 class="modal-title" id="modal-tx-title" style="color: white; display: flex; align-items: center; gap: 0.5rem;">
+          <span>🟡 Log Chemotherapy Infusion Session</span>
+        </h3>
+        <button class="modal-close-btn" style="color: white;" data-close-modal="modal-treatment">&times;</button>
+      </div>
+      <form id="form-treatment">
+        <input type="hidden" id="tx-id" value="">
+        <div class="modal-body">
+          <div class="form-grid">
+            
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 2 4 4-14 14H4v-4L18 2z"></path></svg>
+              <span>Session Demographics</span>
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="tx-patient-search">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                Search Patient (by Name, Number, or Diagnosis) <span class="required">*</span>
+              </label>
+
+              <!-- Hidden input stores selected patient ID without needing dropdown -->
+              <input type="hidden" id="tx-patient-select" name="tx-patient-select" required>
+
+              <div style="display: flex; gap: 0.5rem; margin-bottom: 0.45rem;">
+                <input type="text" id="tx-patient-search" class="form-control" placeholder="🔍 Search by Name, MRN, PhilHealth #, or Diagnosis..." autocomplete="off" style="flex: 1;">
+                <button type="button" class="btn btn-primary" id="btn-search-tx-patient" style="white-space: nowrap; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.55rem 1.15rem; background: #eab308; border-color: #ca8a04; color: #713f12;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  <span>Search</span>
+                </button>
+              </div>
+
+              <!-- Matching results container -->
+              <div id="tx-search-results" style="display: none; margin-bottom: 0.5rem;"></div>
+
+              <!-- Selected Patient Live Profile Card (Yellow Container) -->
+              <div id="tx-selected-patient-preview" style="display: none; padding: 0.75rem 1rem; background: #fefce8; border: 1.5px solid #eab308; border-radius: 8px; font-size: 0.825rem; box-shadow: 0 2px 6px rgba(234, 179, 8, 0.12);">
+                <!-- Live patient preview -->
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-regimen-select">Regimen Protocol <span class="required">*</span></label>
+              <select id="tx-regimen-select" name="tx-regimen-select" class="form-control" required>
+                <!-- Populated dynamically with CHEMO_PROTOCOLS -->
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-cycle-num">Cycle Number <span class="required">*</span></label>
+              <input type="number" id="tx-cycle-num" name="tx-cycle-num" class="form-control" required placeholder="e.g. 4" min="1">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-cycle-total">Planned Cycles Total</label>
+              <input type="number" id="tx-cycle-total" name="tx-cycle-total" class="form-control" placeholder="e.g. 8" min="1">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-date">Treatment Date <span class="required">*</span></label>
+              <input type="date" id="tx-date" name="tx-date" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-start-time">Start Time</label>
+              <input type="time" id="tx-start-time" name="tx-start-time" class="form-control">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-end-time">End / Discharge Time</label>
+              <input type="time" id="tx-end-time" name="tx-end-time" class="form-control">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-oncologist">Attending Oncologist <span class="required">*</span></label>
+              <input type="text" id="tx-oncologist" name="tx-oncologist" class="form-control" required placeholder="e.g. Dr. Evelyn Reed, MD">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-nurse">Supervising Oncology Certified Nurse (OCN) <span class="required">*</span></label>
+              <input type="text" id="tx-nurse" name="tx-nurse" class="form-control" required placeholder="e.g. Nurse Brenda Miller, RN, OCN">
+            </div>
+
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+              <span>Pre-Medications Administered</span>
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="tx-premeds">Pre-Medications Checklist (Dexamethasone, Ondansetron, Fluids, etc.)</label>
+              <textarea id="tx-premeds" class="form-control" rows="2" placeholder="e.g. Dexamethasone 12mg IV, Ondansetron 16mg IV, Normal Saline 500mL"></textarea>
+            </div>
+
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span>Antineoplastic Drugs Administered</span>
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label">Chemotherapy Agents & Actual Dosages <span class="required">*</span></label>
+              <div id="tx-drugs-table-container">
+                <!-- Drug rows table with add/remove buttons -->
+              </div>
+              <button type="button" class="btn btn-sm btn-secondary" id="btn-add-drug-row" style="margin-top: 0.5rem;">
+                + Add Another Drug / Agent
+              </button>
+            </div>
+
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              <span>Vitals Monitoring During Infusion</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-vitals-pre">Pre-Infusion Vitals</label>
+              <input type="text" id="tx-vitals-pre" class="form-control" placeholder="BP 120/80, HR 72, Temp 36.6">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-vitals-mid">Mid-Infusion Vitals (30-60 min check)</label>
+              <input type="text" id="tx-vitals-mid" class="form-control" placeholder="BP 124/78, HR 76, Temp 36.7">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-vitals-post">Post-Infusion / Pre-Discharge Vitals</label>
+              <input type="text" id="tx-vitals-post" class="form-control" placeholder="BP 120/75, HR 70, Temp 36.6">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-iv-access">Vascular Access & Port Check</label>
+              <input type="text" id="tx-iv-access" class="form-control" placeholder="e.g. Left Port-A-Cath brisk blood return, flushed">
+            </div>
+
+            <div class="form-section-heading">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+              <span>Infusion Tolerance, Extravasation & Discharge</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-tolerance">Tolerability / CTCAE Reaction Grade <span class="required">*</span></label>
+              <select id="tx-tolerance" class="form-control" required>
+                <option value="Grade 0 (Well tolerated, no reaction)">Grade 0 (Well tolerated, no reaction)</option>
+                <option value="Grade 1 (Mild reaction, no intervention needed)">Grade 1 (Mild reaction, no intervention needed)</option>
+                <option value="Grade 2 (Moderate, responded to symptomatic therapy)">Grade 2 (Moderate, responded to therapy)</option>
+                <option value="Grade 3 (Severe / Infusion interrupted)">Grade 3 (Severe / Infusion interrupted)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="tx-next-cycle">Next Cycle Target Date</label>
+              <input type="date" id="tx-next-cycle" class="form-control">
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="tx-adverse-notes">Reactions / Interventions / Nurse Notes</label>
+              <textarea id="tx-adverse-notes" class="form-control" rows="2" placeholder="e.g. Infusion well tolerated. No extravasation. Discharged ambulatory with oral antiemetic instructions."></textarea>
+            </div>
+
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="modal-treatment">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-tx">Save Treatment Infusion Log</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. Delete Confirmation Modal -->
+  <div class="modal-backdrop" id="modal-delete-confirm">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header" style="background-color: var(--danger-bg);">
+        <h3 class="modal-title" style="color: var(--danger);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+          <span>Confirm Patient Deletion</span>
+        </h3>
+        <button class="modal-close-btn" data-close-modal="modal-delete-confirm">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 0.75rem; font-weight: 600;" id="delete-patient-name-text">Are you sure you want to delete this patient?</p>
+        <p style="font-size: 0.85rem; color: var(--text-muted);" id="delete-patient-warning-text">
+          This action cannot be undone. All clinical consultation records and chemotherapy treatment history linked to this patient will also be removed.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close-modal="modal-delete-confirm">Cancel</button>
+        <button type="button" class="btn btn-danger" id="btn-confirm-delete-patient">Permanently Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Supervisor / Physician Authorization Modal -->
+  <div class="modal-backdrop" id="modal-supervisor-auth">
+    <div class="modal-dialog" style="max-width: 520px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #096ca7, #0284c7); color: white;">
+        <h3 class="modal-title" style="color: white; display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Supervisor Authorization Required</span>
+        </h3>
+        <button class="modal-close-btn" style="color: white;" data-close-modal="modal-supervisor-auth">&times;</button>
+      </div>
+      <form id="form-supervisor-auth">
+        <div class="modal-body">
+          <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 1rem; font-size: 0.825rem; color: #92400e; display: flex; gap: 0.75rem; align-items: flex-start;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top: 2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <div>
+              <strong>Restricted Clinical Action:</strong>
+              <div>Only authorized personnel (Attending Oncologist or Medical Director) can modify or delete oncologic consultations and chemotherapy infusion records.</div>
+            </div>
+          </div>
+
+          <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700;">Action Requested:</div>
+            <div style="font-size: 0.95rem; font-weight: 600; color: #0f172a; margin-top: 0.2rem;" id="supervisor-target-action-desc">Modifying Clinical Record</div>
+          </div>
+
+          <div id="supervisor-auth-error-alert" style="display: none; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 6px; padding: 0.65rem 0.85rem; font-size: 0.825rem; margin-bottom: 1rem;">
+            Invalid supervisor credentials. Only authorized medical oncologists or directors may approve this action.
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label class="form-label" for="supervisor-username">Authorized Physician / Director Username <span class="required">*</span></label>
+            <input type="text" id="supervisor-username" class="form-control" placeholder="e.g. admin or dr.reed" required autocomplete="username">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label class="form-label" for="supervisor-password">Supervisor Password <span class="required">*</span></label>
+            <input type="password" id="supervisor-password" class="form-control" placeholder="Enter supervisor password" required autocomplete="current-password">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label class="form-label" for="supervisor-reason">Clinical Reason for Amendment / Action <span class="required">*</span></label>
+            <select id="supervisor-reason" class="form-control" required>
+              <option value="Physician order update / regimen adjustment">Physician order update / regimen adjustment</option>
+              <option value="Dose calculation or vitals correction">Dose calculation or vitals correction</option>
+              <option value="Transcription / data entry error correction">Transcription / data entry error correction</option>
+              <option value="Lab result update / revised clearance status">Lab result update / revised clearance status</option>
+              <option value="Duplicate record removal">Duplicate record removal</option>
+              <option value="Other clinical supervisor approval">Other clinical supervisor approval</option>
+            </select>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; margin-top: 0.5rem;">
+            <button type="button" class="btn btn-sm btn-ghost" id="btn-quick-fill-supervisor" style="font-size: 0.78rem; color: #0284c7; cursor: pointer;">
+              ⚡ Quick-fill: Administrator (admin / admin123)
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="modal-supervisor-auth">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-verify-supervisor">Authorize &amp; Proceed</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. Clinical Event Detail View Modal -->
+  <div class="modal-backdrop" id="modal-view-record">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header" id="modal-view-record-header" style="background: linear-gradient(135deg, #096ca7, #0284c7); color: white;">
+        <h3 class="modal-title" id="modal-view-record-title" style="color: white; display: flex; align-items: center; gap: 0.5rem;">
+          <span>Clinical Record Details</span>
+        </h3>
+        <button class="modal-close-btn" style="color: white;" data-close-modal="modal-view-record">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-view-record-body" style="padding: 1.5rem; max-height: 75vh; overflow-y: auto;">
+        <!-- Dynamic rich formatted medical details -->
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" class="btn btn-secondary" onclick="window.print()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+          <span>Print Clinical Entry</span>
+        </button>
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn btn-secondary" data-close-modal="modal-view-record">Close</button>
+          <button type="button" class="btn btn-primary" id="modal-view-edit-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            <span>Edit Record</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="protocols.js"></script>
+  <script src="demo-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
