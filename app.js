@@ -27,6 +27,185 @@ const CLINICAL_USERS = [
   }
 ];
 
+/* ------------------------------------------------------------------
+ * Clinical Document Storage Engine (IndexedDB + In-Memory Fallback)
+ * ------------------------------------------------------------------ */
+class ChemoDocStore {
+  constructor() {
+    this.dbName = 'ICC_EHR_DocStore';
+    this.storeName = 'documents';
+    this.version = 1;
+    this.cache = new Map();
+    this.db = null;
+    this.initPromise = this.init();
+  }
+
+  async init() {
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      console.warn('IndexedDB unavailable, using in-memory document store.');
+      return null;
+    }
+    return new Promise((resolve) => {
+      try {
+        const req = indexedDB.open(this.dbName, this.version);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(this.storeName)) {
+            db.createObjectStore(this.storeName, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = (e) => {
+          this.db = e.target.result;
+          resolve(this.db);
+        };
+        req.onerror = () => {
+          console.warn('IndexedDB access blocked, continuing in-memory.');
+          resolve(null);
+        };
+      } catch (err) {
+        console.warn('IndexedDB initialization failed:', err);
+        resolve(null);
+      }
+    });
+  }
+
+  async saveDocument(doc) {
+    if (!doc || !doc.id) return;
+    if (doc.data) {
+      this.cache.set(doc.id, doc.data);
+    }
+    await this.initPromise;
+    if (!this.db) return;
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction(this.storeName, 'readwrite');
+        const store = tx.objectStore(this.storeName);
+        store.put({
+          id: doc.id,
+          name: doc.name,
+          type: doc.type,
+          size: doc.size,
+          data: doc.data,
+          uploadedAt: doc.uploadedAt
+        });
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (e) {
+        resolve(false);
+      }
+    });
+  }
+
+  async getDocumentData(doc) {
+    if (!doc) return null;
+    if (doc.data) return doc.data;
+    if (this.cache.has(doc.id)) return this.cache.get(doc.id);
+    await this.initPromise;
+    if (!this.db) return null;
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction(this.storeName, 'readonly');
+        const store = tx.objectStore(this.storeName);
+        const req = store.get(doc.id);
+        req.onsuccess = () => {
+          const res = req.result;
+          if (res && res.data) {
+            this.cache.set(doc.id, res.data);
+            resolve(res.data);
+          } else {
+            resolve(null);
+          }
+        };
+        req.onerror = () => resolve(null);
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  }
+
+  async deleteDocument(docId) {
+    this.cache.delete(docId);
+    await this.initPromise;
+    if (!this.db) return;
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction(this.storeName, 'readwrite');
+        const store = tx.objectStore(this.storeName);
+        store.delete(docId);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (e) {
+        resolve(false);
+      }
+    });
+  }
+}
+
+function generateSamplePdfDataUrl(title, subtitle, bodyLines) {
+  const textStream = `BT /F1 16 Tf 50 720 Td (${title}) Tj ET\n` +
+    `BT /F1 11 Tf 50 695 Td (${subtitle}) Tj ET\n` +
+    `BT /F1 10 Tf 50 660 Td (--------------------------------------------------------------------------) Tj ET\n` +
+    bodyLines.map((line, idx) => `BT /F1 10 Tf 50 ${630 - (idx * 20)} Td (${line.replace(/[()]/g, '')}) Tj ET`).join('\n');
+
+  const streamLen = textStream.length;
+  const pdfString = `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length ${streamLen} >>
+stream
+${textStream}
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000224 00000 n 
+0000000295 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+${360 + streamLen}
+%%EOF`;
+
+  try {
+    return 'data:application/pdf;base64,' + btoa(unescape(encodeURIComponent(pdfString)));
+  } catch (e) {
+    return 'data:application/pdf;base64,' + btoa(pdfString);
+  }
+}
+
+function generateSampleSvgDataUrl(title, category, items) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+    <rect width="800" height="600" fill="#f8fafc" rx="8"/>
+    <rect x="20" y="20" width="760" height="80" rx="6" fill="#096ca7"/>
+    <text x="40" y="55" fill="#ffffff" font-family="Arial, sans-serif" font-size="20" font-weight="bold">IMUS CHEMOTHERAPY CENTER</text>
+    <text x="40" y="80" fill="#e0f2fe" font-family="Arial, sans-serif" font-size="13">Electronic Oncology Medical Record System • Malagasang I-G Imus City</text>
+    <rect x="20" y="115" width="760" height="40" fill="#e2e8f0" rx="4"/>
+    <text x="35" y="140" fill="#0f172a" font-family="Arial, sans-serif" font-size="14" font-weight="bold">${title.replace(/[<>&]/g, '')} [${category.replace(/[<>&]/g, '')}]</text>
+    <rect x="20" y="170" width="760" height="350" fill="#ffffff" stroke="#cbd5e1" rx="6"/>
+    ${items.map((item, idx) => `<text x="40" y="${210 + (idx * 28)}" fill="#334155" font-family="Arial, sans-serif" font-size="13">${item.replace(/[<>&]/g, '')}</text>`).join('')}
+    <line x1="40" y1="460" x2="320" y2="460" stroke="#096ca7" stroke-width="1.5"/>
+    <text x="40" y="480" fill="#096ca7" font-family="Arial, sans-serif" font-size="12" font-weight="bold">Verified by Medical Oncology &amp; Clinical Laboratory</text>
+    <rect x="20" y="540" width="760" height="40" fill="#f1f5f9" rx="4"/>
+    <text x="35" y="565" fill="#64748b" font-family="Arial, sans-serif" font-size="11">CONFIDENTIAL MEDICAL DOCUMENT • FOR CLINICAL USE ONLY</text>
+  </svg>`;
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
 class ChemoApp {
   constructor() {
     this.storageKey = 'imus_chemo_census_v6';
@@ -38,6 +217,16 @@ class ChemoApp {
     this.pendingDeletePatientId = null;
     this.activeChartTab = 'timeline';
     this.timelineFilter = 'all';
+
+    // Document Storage Engine & Pending Attachments State
+    this.docStore = new ChemoDocStore();
+    this.modalPendingDocs = {
+      patient: [],
+      consultation: [],
+      treatment: [],
+      laboratory: []
+    };
+    this.currentViewerDoc = null;
 
     // Clinical Authentication & Authorization State
     this.currentUser = null;
@@ -54,6 +243,25 @@ class ChemoApp {
     this.reportCustomStart = '2026-10-01';
     this.reportCustomEnd = '2026-10-31';
 
+    // Schedule & Clinical Appointments State
+    this.schedules = [];
+    this.scheduleLayout = 'list';
+    this.scheduleDateFrom = '';
+    this.scheduleDateTo = '';
+    this.scheduleFilterApplied = false;
+    this.scheduleTypeFilter = 'all';
+    this.scheduleStatusFilter = 'all';
+    this.scheduleSearchQuery = '';
+    this.editingScheduleId = null;
+
+    // Laboratory & Diagnostic Results State
+    this.laboratory = [];
+    this.labSearchQuery = '';
+    this.labCategoryFilter = 'all';
+    this.labStatusFilter = 'all';
+    this.labPatientFilter = '';
+    this.editingLabId = null;
+
     this.init();
   }
 
@@ -63,6 +271,9 @@ class ChemoApp {
     this.bindEvents();
     this.initAuth();
     this.render();
+    setTimeout(() => {
+      this.checkAndShowTomorrowReminder(false);
+    }, 800);
   }
 
   /* ------------------------------------------------------------------
@@ -199,6 +410,9 @@ class ChemoApp {
       this.updateUserSessionUI();
       this.showToast(`Welcome back, ${match.fullName} (${match.badge})`, 'success');
       this.render();
+      setTimeout(() => {
+        this.checkAndShowTomorrowReminder(false);
+      }, 500);
       return true;
     } else {
       const err = document.getElementById('login-error-alert');
@@ -417,6 +631,30 @@ class ChemoApp {
           }
         });
 
+        // Ensure documents arrays exist
+        this.patients.forEach(p => { p.documents = p.documents || []; });
+        this.consultations.forEach(c => { c.documents = c.documents || []; });
+        this.treatments.forEach(t => { t.documents = t.documents || []; });
+        this.ensureInitialSampleDocuments();
+
+        // Load schedules
+        try {
+          const rawSch = localStorage.getItem('ICC_EHR_schedules_v1');
+          this.schedules = rawSch ? JSON.parse(rawSch) : (data.schedules || []);
+        } catch (_) {
+          this.schedules = data.schedules || [];
+        }
+        this.ensureInitialSampleSchedules();
+
+        // Load laboratory
+        try {
+          const rawLab = localStorage.getItem('ICC_EHR_laboratory_v1');
+          this.laboratory = rawLab ? JSON.parse(rawLab) : [];
+        } catch (_) {
+          this.laboratory = [];
+        }
+        this.ensureInitialSampleLaboratory();
+
         if (migrated) {
           this.saveData();
         }
@@ -432,13 +670,41 @@ class ChemoApp {
 
   saveData() {
     try {
+      // Keep localStorage lean so large uploads never cause QuotaExceededError
+      const cleanDocs = (docs) => {
+        if (!Array.isArray(docs)) return [];
+        return docs.map(d => {
+          if (d.data && d.data.length > 200000) {
+            const { data, ...meta } = d;
+            return meta;
+          }
+          return d;
+        });
+      };
+
       const payload = {
-        patients: this.patients,
-        consultations: this.consultations,
-        treatments: this.treatments,
+        patients: this.patients.map(p => ({
+          ...p,
+          documents: cleanDocs(p.documents)
+        })),
+        consultations: this.consultations.map(c => ({
+          ...c,
+          documents: cleanDocs(c.documents)
+        })),
+        treatments: this.treatments.map(t => ({
+          ...t,
+          documents: cleanDocs(t.documents)
+        })),
+        schedules: this.schedules || [],
+        laboratory: (this.laboratory || []).map(l => ({
+          ...l,
+          documents: cleanDocs(l.documents)
+        })),
         savedAt: new Date().toISOString()
       };
       localStorage.setItem(this.storageKey, JSON.stringify(payload));
+      localStorage.setItem('ICC_EHR_schedules_v1', JSON.stringify(this.schedules || []));
+      localStorage.setItem('ICC_EHR_laboratory_v1', JSON.stringify(this.laboratory || []));
       this.updateCounters();
     } catch (e) {
       console.error('Failed to save data:', e);
@@ -451,6 +717,14 @@ class ChemoApp {
       this.patients = JSON.parse(JSON.stringify(DEMO_PATIENTS));
       this.consultations = JSON.parse(JSON.stringify(DEMO_CONSULTATIONS));
       this.treatments = JSON.parse(JSON.stringify(DEMO_TREATMENTS));
+      this.patients.forEach(p => { p.documents = p.documents || []; });
+      this.consultations.forEach(c => { c.documents = c.documents || []; });
+      this.treatments.forEach(t => { t.documents = t.documents || []; });
+      this.ensureInitialSampleDocuments();
+      this.schedules = [];
+      this.ensureInitialSampleSchedules();
+      this.laboratory = [];
+      this.ensureInitialSampleLaboratory();
       this.saveData();
       if (notify) {
         this.showToast('Clinical demo cases restored successfully', 'success');
@@ -464,6 +738,8 @@ class ChemoApp {
       this.patients = [];
       this.consultations = [];
       this.treatments = [];
+      this.schedules = [];
+      this.laboratory = [];
       this.saveData();
       this.showToast('Database wiped clean', 'warning');
       this.navigateTo('patients');
@@ -508,6 +784,750 @@ class ChemoApp {
       }
     };
     reader.readAsText(file);
+  }
+
+  /* ------------------------------------------------------------------
+   * Clinical Document Management & File Engine (Patients, Consultations, Treatments)
+   * ------------------------------------------------------------------ */
+  async ensureInitialSampleDocuments() {
+    // 1. Patient Sample Documents (ICC-P001)
+    if (this.patients.length > 0 && (!this.patients[0].documents || this.patients[0].documents.length === 0)) {
+      const p = this.patients[0];
+      const doc1 = {
+        id: 'doc_sample_p1',
+        name: `${p.mrn}_Histopathology_Biopsy_Report.pdf`,
+        size: 184320,
+        sizeFormatted: '180 KB',
+        type: 'application/pdf',
+        category: 'Pathology & Biopsy',
+        uploadedAt: '2026-10-15T09:30:00.000Z',
+        uploadedBy: 'Dr. Evelyn Reed, MD',
+        data: generateSamplePdfDataUrl(
+          'IMUS CHEMOTHERAPY CENTER - HISTOPATHOLOGY REPORT',
+          `Patient: ${p.fullName} | MRN: ${p.mrn} | Specimen: Core Needle Biopsy`,
+          [
+            'CLINICAL DIAGNOSIS: Invasive Ductal Carcinoma, Grade 2',
+            'RECEPTOR STATUS: ER Positive (85%), PR Positive (70%), HER2 Neu Negative (Score 1+)',
+            'KI-67 PROLIFERATION INDEX: 22%',
+            'SURGICAL MARGINS: Cleared of invasive malignant components',
+            'PATHOLOGIST: Dr. Julian Santos, MD, FPSP (License #089421)'
+          ]
+        )
+      };
+
+      const doc2 = {
+        id: 'doc_sample_p2',
+        name: `${p.mrn}_Baseline_Contrast_CT_Scan.png`,
+        size: 245760,
+        sizeFormatted: '240 KB',
+        type: 'image/svg+xml',
+        category: 'Radiology & Scans',
+        uploadedAt: '2026-10-18T14:15:00.000Z',
+        uploadedBy: 'Dr. Evelyn Reed, MD',
+        data: generateSampleSvgDataUrl(
+          `Radiological CT Scan - ${p.fullName} (${p.mrn})`,
+          'Chest & Abdomen Contrast Computed Tomography',
+          [
+            'INDICATION: Baseline clinical staging for adjuvant antineoplastic protocol.',
+            'FINDINGS: No evidence of pleural effusion or focal consolidation.',
+            'MEDIASTINUM: No pathologic lymphadenopathy identified.',
+            'LIVER: Normal parenchymal attenuation. No discrete focal metastatic lesions.',
+            'IMPRESSION: No distant metastatic disease observed. Stage IIA confirmed.'
+          ]
+        )
+      };
+
+      const doc3 = {
+        id: 'doc_sample_p3',
+        name: `${p.mrn}_Informed_Chemo_Consent_Signed.pdf`,
+        size: 122880,
+        sizeFormatted: '120 KB',
+        type: 'application/pdf',
+        category: 'Consent & Legal',
+        uploadedAt: '2026-10-22T10:00:00.000Z',
+        uploadedBy: 'Nurse Supervisor',
+        data: generateSamplePdfDataUrl(
+          'IMUS CHEMOTHERAPY CENTER - INFORMED CHEMO CONSENT',
+          `Patient: ${p.fullName} | MRN: ${p.mrn} | Date: October 22, 2026`,
+          [
+            'DOCUMENT: Voluntary Patient Informed Consent for Systemic Chemotherapy',
+            'PROTOCOL EXPLAINED: Doxorubicin + Cyclophosphamide (AC) followed by Paclitaxel',
+            'RISKS DISCUSSED: Neutropenia, alopecia, nausea, extravasation precautions',
+            'PATIENT ATTESTATION: Fully explained in English and Filipino, questions answered',
+            'SIGNATURE STATUS: Executed and countersigned by Attending Oncologist'
+          ]
+        )
+      };
+
+      p.documents = [doc1, doc2, doc3];
+      await this.docStore.saveDocument(doc1);
+      await this.docStore.saveDocument(doc2);
+      await this.docStore.saveDocument(doc3);
+    }
+
+    // 2. Consultation Sample Documents
+    if (this.consultations.length > 0 && (!this.consultations[0].documents || this.consultations[0].documents.length === 0)) {
+      const c = this.consultations[0];
+      const p = this.getPatientById(c.patientId);
+      const patName = p ? p.fullName : 'Patient';
+      const patMrn = p ? p.mrn : 'ICC-P001';
+
+      const conDoc1 = {
+        id: 'doc_sample_c1',
+        name: `CBC_Platelet_Differential_Panel_${c.date}.pdf`,
+        size: 143360,
+        sizeFormatted: '140 KB',
+        type: 'application/pdf',
+        category: 'Laboratory & Blood Tests',
+        uploadedAt: `${c.date}T08:30:00.000Z`,
+        uploadedBy: c.oncologist || 'Dr. Evelyn Reed, MD',
+        data: generateSamplePdfDataUrl(
+          'IMUS CLINICAL LABORATORY - COMPLETE BLOOD COUNT',
+          `Patient: ${patName} | MRN: ${patMrn} | Collection Date: ${c.date}`,
+          [
+            'HEMOGLOBIN: 12.4 g/dL (Normal Range: 12.0 - 15.5)',
+            'WHITE BLOOD CELLS (WBC): 6.8 x 10^9/L (Normal Range: 4.5 - 11.0)',
+            'ABSOLUTE NEUTROPHIL COUNT (ANC): 3.8 x 10^9/L [CLEARED: > 1.5 required]',
+            'PLATELETS: 245 x 10^9/L [CLEARED: > 100 required]',
+            'CREATININE: 0.82 mg/dL | SGPT/ALT: 24 U/L | SGOT/AST: 21 U/L'
+          ]
+        )
+      };
+
+      const conDoc2 = {
+        id: 'doc_sample_c2',
+        name: `Oncologist_PreChemo_Clearance_Prescription.png`,
+        size: 194560,
+        sizeFormatted: '190 KB',
+        type: 'image/svg+xml',
+        category: 'Orders & Prescriptions',
+        uploadedAt: `${c.date}T09:15:00.000Z`,
+        uploadedBy: c.oncologist || 'Dr. Evelyn Reed, MD',
+        data: generateSampleSvgDataUrl(
+          `Oncology Pre-Chemotherapy Clearance Order`,
+          `Prescription & Infusion Authorization - ${patName}`,
+          [
+            `PATIENT: ${patName} (${patMrn}) | EVALUATION DATE: ${c.date}`,
+            `DECISION: 🟢 CLEARED FOR CHEMOTHERAPY AT 100% STANDARD DOSE`,
+            'PRE-MEDICATIONS: Dexamethasone 20mg IV, Ondansetron 8mg IV, Diphenhydramine 50mg IV',
+            'CHEMO REGIMEN: Doxorubicin 60 mg/m2 IV push + Cyclophosphamide 600 mg/m2 IV infusion',
+            'MONITORING: Vital signs q15m during initial 30 min, then q30m until discharge.'
+          ]
+        )
+      };
+
+      c.documents = [conDoc1, conDoc2];
+      await this.docStore.saveDocument(conDoc1);
+      await this.docStore.saveDocument(conDoc2);
+    }
+
+    // 3. Treatment Sample Documents
+    if (this.treatments.length > 0 && (!this.treatments[0].documents || this.treatments[0].documents.length === 0)) {
+      const t = this.treatments[0];
+      const p = this.getPatientById(t.patientId);
+      const patName = p ? p.fullName : 'Patient';
+      const patMrn = p ? p.mrn : 'ICC-P001';
+
+      const txDoc1 = {
+        id: 'doc_sample_t1',
+        name: `Chemotherapy_Dual_Verification_Flowsheet_Cycle${t.cycleNumber}.pdf`,
+        size: 215040,
+        sizeFormatted: '210 KB',
+        type: 'application/pdf',
+        category: 'Infusion Flowsheet',
+        uploadedAt: `${t.treatmentDate}T10:00:00.000Z`,
+        uploadedBy: t.supervisingNurse || 'Nurse Supervisor',
+        data: generateSamplePdfDataUrl(
+          'CHEMOTHERAPY DUAL INDEPENDENT NURSE VERIFICATION FLOWSHEET',
+          `Patient: ${patName} | MRN: ${patMrn} | Protocol: ${t.regimenName} Cycle ${t.cycleNumber}`,
+          [
+            'STEP 1: Patient identity verified via 2 unique identifiers (Full Name + DOB)',
+            'STEP 2: Regimen, protocol cycle, dosing calculations, and diluent double-checked',
+            'STEP 3: Primary Nurse (RN 1) and Verifying Oncology Nurse (RN 2) independent check: VERIFIED',
+            'IV ACCESS: Verified blood return on Port-A-Cath. No resistance or swelling.',
+            'DISPOSITION: Ambulatory discharge, premedication post-care instructions delivered.'
+          ]
+        )
+      };
+
+      const txDoc2 = {
+        id: 'doc_sample_t2',
+        name: `Premedication_Infusion_Monitoring_Log.png`,
+        size: 163840,
+        sizeFormatted: '160 KB',
+        type: 'image/svg+xml',
+        category: 'Infusion Flowsheet',
+        uploadedAt: `${t.treatmentDate}T10:45:00.000Z`,
+        uploadedBy: t.supervisingNurse || 'Nurse Supervisor',
+        data: generateSampleSvgDataUrl(
+          `Infusion Administration & Monitoring Log - Cycle ${t.cycleNumber}`,
+          `Vital Signs & Acute Toxicity Observations - ${patName}`,
+          [
+            `PATIENT: ${patName} (${patMrn}) | TREATMENT DATE: ${t.treatmentDate}`,
+            'TIME 09:30 - Premeds started: Dexamethasone + Ondansetron IV piggyback (BP 120/80)',
+            'TIME 10:00 - Chemo infusion started. Drip rate calibrated via smart infusion pump.',
+            'TIME 10:30 - Infusion midpoint check: Patient resting comfortably, no nausea, BP 122/78.',
+            'TIME 11:30 - Infusion completed. Saline flush 100mL administered. Line locked.'
+          ]
+        )
+      };
+
+      t.documents = [txDoc1, txDoc2];
+      await this.docStore.saveDocument(txDoc1);
+      await this.docStore.saveDocument(txDoc2);
+    }
+  }
+
+  formatFileSize(bytes) {
+    if (!bytes || isNaN(bytes)) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = bytes;
+    let unitIdx = 0;
+    while (size >= 1024 && unitIdx < units.length - 1) {
+      size /= 1024;
+      unitIdx++;
+    }
+    return `${size.toFixed(unitIdx === 0 ? 0 : 1)} ${units[unitIdx]}`;
+  }
+
+  getDocumentIconInfo(doc) {
+    if (!doc) return { icon: '📎', class: 'text' };
+    const name = (doc.name || '').toLowerCase();
+    const type = (doc.type || '').toLowerCase();
+
+    if (type.includes('pdf') || name.endsWith('.pdf')) {
+      return { icon: '📄', class: 'pdf' };
+    }
+    if (type.startsWith('image/') || Boolean(name.match(/\.(png|jpe?g|webp|gif|svg)$/))) {
+      return { icon: '🖼️', class: 'image' };
+    }
+    if (type.startsWith('text/') || Boolean(name.match(/\.(txt|csv|log|doc|docx)$/))) {
+      return { icon: '📝', class: 'text' };
+    }
+    return { icon: '📎', class: 'text' };
+  }
+
+  isPdf(doc) {
+    if (!doc) return false;
+    const name = (doc.name || '').toLowerCase();
+    const type = (doc.type || '').toLowerCase();
+    return type.includes('pdf') || name.endsWith('.pdf');
+  }
+
+  isImage(doc) {
+    if (!doc) return false;
+    const name = (doc.name || '').toLowerCase();
+    const type = (doc.type || '').toLowerCase();
+    return type.startsWith('image/') || Boolean(name.match(/\.(png|jpe?g|webp|gif|svg)$/));
+  }
+
+  findDocumentById(docId) {
+    // Check pending modal documents
+    for (const list of Object.values(this.modalPendingDocs)) {
+      const match = list.find(d => d.id === docId);
+      if (match) return match;
+    }
+    // Check in patients
+    for (const p of this.patients) {
+      if (Array.isArray(p.documents)) {
+        const match = p.documents.find(d => d.id === docId);
+        if (match) return match;
+      }
+    }
+    // Check in consultations
+    for (const c of this.consultations) {
+      if (Array.isArray(c.documents)) {
+        const match = c.documents.find(d => d.id === docId);
+        if (match) return match;
+      }
+    }
+    // Check in treatments
+    for (const t of this.treatments) {
+      if (Array.isArray(t.documents)) {
+        const match = t.documents.find(d => d.id === docId);
+        if (match) return match;
+      }
+    }
+    // Check in laboratory
+    for (const l of (this.laboratory || [])) {
+      if (Array.isArray(l.documents)) {
+        const match = l.documents.find(d => d.id === docId);
+        if (match) return match;
+      }
+    }
+    return null;
+  }
+
+  readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async uploadFilesToEntity(fileList, entityType, entityId, category) {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+
+    for (const file of files) {
+      if (file.size > 25 * 1024 * 1024) {
+        this.showToast(`File "${file.name}" exceeds the 25MB maximum limit.`, 'danger');
+        continue;
+      }
+
+      try {
+        const dataUrl = await this.readFileAsDataUrl(file);
+        const doc = {
+          id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+          name: file.name,
+          size: file.size,
+          sizeFormatted: this.formatFileSize(file.size),
+          type: file.type || 'application/octet-stream',
+          category: category || 'General Document',
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: this.currentUser ? this.currentUser.fullName : 'Clinical Staff',
+          data: dataUrl
+        };
+
+        await this.docStore.saveDocument(doc);
+
+        if (entityId) {
+          if (entityType === 'patient') {
+            const patient = this.getPatientById(entityId);
+            if (patient) {
+              patient.documents = patient.documents || [];
+              patient.documents.unshift(doc);
+            }
+          } else if (entityType === 'consultation') {
+            const consult = this.consultations.find(c => c.id === entityId);
+            if (consult) {
+              consult.documents = consult.documents || [];
+              consult.documents.unshift(doc);
+            }
+          } else if (entityType === 'treatment') {
+            const tx = this.treatments.find(t => t.id === entityId);
+            if (tx) {
+              tx.documents = tx.documents || [];
+              tx.documents.unshift(doc);
+            }
+          } else if (entityType === 'laboratory') {
+            const lab = (this.laboratory || []).find(l => l.id === entityId);
+            if (lab) {
+              lab.documents = lab.documents || [];
+              lab.documents.unshift(doc);
+            }
+          }
+        } else if (entityType && this.modalPendingDocs[entityType]) {
+          this.modalPendingDocs[entityType].unshift(doc);
+          this.renderModalDocsList(entityType);
+        }
+
+        this.showToast(`Attached "${doc.name}" successfully!`, 'success');
+      } catch (err) {
+        console.error('Error uploading file:', err);
+        this.showToast(`Failed to upload "${file.name}".`, 'danger');
+      }
+    }
+
+    this.saveData();
+
+    // Refresh active view
+    if (entityType === 'patient' && this.activeView === 'patient-chart' && this.selectedPatientId === entityId) {
+      const patient = this.getPatientById(entityId);
+      if (patient) {
+        this.renderPatientDocuments(patient);
+        const docBadge = document.getElementById('chart-tab-doc-count');
+        if (docBadge) docBadge.textContent = (patient.documents || []).length;
+      }
+    } else if (entityType === 'consultation') {
+      this.renderConsultationsList();
+      const openModal = document.getElementById('modal-view-record');
+      if (openModal && openModal.classList.contains('open')) {
+        this.viewConsultation(entityId);
+      }
+    } else if (entityType === 'treatment') {
+      this.renderTreatmentsList();
+      const openModal = document.getElementById('modal-view-record');
+      if (openModal && openModal.classList.contains('open')) {
+        this.viewTreatment(entityId);
+      }
+    } else if (entityType === 'laboratory') {
+      this.renderLaboratory();
+      const openModal = document.getElementById('modal-view-record');
+      if (openModal && openModal.classList.contains('open')) {
+        this.viewLaboratory(entityId);
+      }
+    }
+  }
+
+  renderPatientDocuments(patient) {
+    const container = document.getElementById('patient-chart-docs-container');
+    const summaryEl = document.getElementById('chart-doc-summary-text');
+    if (!container) return;
+
+    const docs = patient.documents || [];
+    const totalBytes = docs.reduce((acc, d) => acc + (d.size || 0), 0);
+
+    if (summaryEl) {
+      summaryEl.textContent = `${docs.length} Document(s) Attached (${this.formatFileSize(totalBytes)})`;
+    }
+
+    if (docs.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state" style="padding: 2.5rem 1rem;">
+          <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📎</div>
+          <h4>No Clinical Documents Attached</h4>
+          <p>Upload biopsy pathology reports, CBC lab results, CT scans, or chemo consent forms using the dropzone above.</p>
+          <button type="button" class="btn btn-primary" style="margin-top: 1rem;" onclick="document.getElementById('patient-chart-file-input').click()">
+            Upload First Document
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="doc-grid">
+        ${docs.map(d => {
+          const iconInfo = this.getDocumentIconInfo(d);
+          const dateStr = d.uploadedAt ? d.uploadedAt.slice(0, 10) : 'Recent';
+          return `
+            <div class="doc-card">
+              <div class="doc-card-top">
+                <div class="doc-card-icon ${iconInfo.class}">${iconInfo.icon}</div>
+                <div class="doc-card-info">
+                  <span class="doc-category-badge">${this.escapeHtml(d.category || 'Clinical Document')}</span>
+                  <div class="doc-card-name" title="${this.escapeHtml(d.name)}">${this.escapeHtml(d.name)}</div>
+                  <div class="doc-card-meta">
+                    <span>${d.sizeFormatted || this.formatFileSize(d.size)}</span>
+                    <span>&bull;</span>
+                    <span>${dateStr}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="doc-card-actions">
+                <button type="button" class="btn btn-sm btn-outline" onclick="app.viewDocument('${d.id}', 'patient', '${patient.id}')" title="Preview document">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="7" r="3"/></svg>
+                  <span>View</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-ghost" onclick="app.downloadDocument('${d.id}', '${this.escapeHtml(d.name)}')" title="Download file to device">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <span>Download</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-ghost" style="color: var(--danger);" onclick="app.deleteDocument('${d.id}', 'patient', '${patient.id}')" title="Permanently delete document">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  renderModalDocsList(modalType) {
+    const listEl = document.getElementById(`modal-${modalType === 'treatment' ? 'tx' : modalType === 'consultation' ? 'consult' : modalType === 'laboratory' ? 'lab' : 'patient'}-docs-list`);
+    if (!listEl) return;
+
+    const docs = this.modalPendingDocs[modalType] || [];
+    if (docs.length === 0) {
+      listEl.innerHTML = `<div style="font-size: 0.78rem; color: var(--text-muted); font-style: italic; padding: 0.25rem 0;">No documents attached yet. Click "+ Attach File" above.</div>`;
+      return;
+    }
+
+    listEl.innerHTML = docs.map(d => {
+      const iconInfo = this.getDocumentIconInfo(d);
+      return `
+        <div class="doc-attachment-item">
+          <div class="doc-attachment-info">
+            <span style="font-size: 1rem;">${iconInfo.icon}</span>
+            <span class="doc-category-badge" style="margin-bottom: 0;">${this.escapeHtml(d.category || 'Doc')}</span>
+            <span class="doc-attachment-name" title="${this.escapeHtml(d.name)}">${this.escapeHtml(d.name)}</span>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">${d.sizeFormatted || this.formatFileSize(d.size)}</span>
+          </div>
+          <div style="display: flex; gap: 0.35rem; align-items: center;">
+            <button type="button" class="btn btn-xs btn-outline" onclick="app.viewDocument('${d.id}', '${modalType}', 'modal')" title="Preview document">View</button>
+            <button type="button" class="btn btn-xs btn-ghost" onclick="app.downloadDocument('${d.id}', '${this.escapeHtml(d.name)}')" title="Download file">⬇</button>
+            <button type="button" class="btn btn-xs btn-ghost" style="color: var(--danger);" onclick="app.removeModalPendingDoc('${modalType}', '${d.id}')" title="Remove attachment">&times;</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  removeModalPendingDoc(modalType, docId) {
+    if (this.modalPendingDocs[modalType]) {
+      this.modalPendingDocs[modalType] = this.modalPendingDocs[modalType].filter(d => d.id !== docId);
+      this.renderModalDocsList(modalType);
+    }
+  }
+
+  renderDocumentCardsHtml(docs, entityType, entityId) {
+    if (!docs || docs.length === 0) {
+      return `<div style="font-size: 0.825rem; color: var(--text-muted); font-style: italic; padding: 0.5rem 0;">No documents attached to this clinical record yet. Click "+ Attach Document" to upload.</div>`;
+    }
+    return `
+      <div class="doc-grid" style="margin-top: 0.5rem;">
+        ${docs.map(d => {
+          const iconInfo = this.getDocumentIconInfo(d);
+          const uploadedDate = d.uploadedAt ? d.uploadedAt.slice(0, 10) : '';
+          return `
+            <div class="doc-card">
+              <div class="doc-card-top">
+                <div class="doc-card-icon ${iconInfo.class}">${iconInfo.icon}</div>
+                <div class="doc-card-info">
+                  <span class="doc-category-badge">${this.escapeHtml(d.category || 'Document')}</span>
+                  <div class="doc-card-name" title="${this.escapeHtml(d.name)}">${this.escapeHtml(d.name)}</div>
+                  <div class="doc-card-meta">
+                    <span>${d.sizeFormatted || this.formatFileSize(d.size)}</span>
+                    <span>&bull;</span>
+                    <span>${uploadedDate}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="doc-card-actions">
+                <button type="button" class="btn btn-sm btn-outline" onclick="app.viewDocument('${d.id}', '${entityType}', '${entityId}')" title="Preview document">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="7" r="3"/></svg>
+                  <span>View</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-ghost" onclick="app.downloadDocument('${d.id}', '${this.escapeHtml(d.name)}')" title="Download document to device">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <span>Download</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-ghost" style="color: var(--danger);" onclick="app.deleteDocument('${d.id}', '${entityType}', '${entityId}')" title="Permanently delete document">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  async viewDocument(docId, entityType, entityId) {
+    const doc = this.findDocumentById(docId);
+    if (!doc) {
+      this.showToast('Document record could not be found.', 'danger');
+      return;
+    }
+
+    const data = doc.data || await this.docStore.getDocumentData(doc);
+    if (!data) {
+      this.showToast('Unable to load document preview data.', 'danger');
+      return;
+    }
+
+    this.currentViewerDoc = doc;
+
+    const titleEl = document.getElementById('modal-view-doc-title');
+    const subEl = document.getElementById('modal-view-doc-sub');
+    const iconEl = document.getElementById('modal-view-doc-icon');
+    const bodyEl = document.getElementById('modal-view-doc-body');
+    const downloadBtn = document.getElementById('modal-view-doc-download-btn');
+    const deleteBtn = document.getElementById('modal-view-doc-delete-btn');
+
+    const iconInfo = this.getDocumentIconInfo(doc);
+
+    if (titleEl) titleEl.textContent = doc.name;
+    if (iconEl) iconEl.textContent = iconInfo.icon;
+    if (subEl) {
+      const dateStr = doc.uploadedAt ? doc.uploadedAt.slice(0, 10) : 'Today';
+      subEl.textContent = `${doc.category || 'Clinical Document'} • ${doc.sizeFormatted || this.formatFileSize(doc.size)} • Uploaded: ${dateStr} by ${doc.uploadedBy || 'Staff'}`;
+    }
+
+    if (downloadBtn) {
+      downloadBtn.onclick = () => this.downloadDocument(doc.id, doc.name);
+    }
+    if (deleteBtn) {
+      deleteBtn.onclick = () => this.deleteDocument(doc.id, entityType, entityId, true);
+    }
+
+    if (bodyEl) {
+      bodyEl.innerHTML = '';
+      const isImage = this.isImage(doc);
+      const isPdf = this.isPdf(doc);
+      const isText = doc.type && doc.type.startsWith('text/');
+
+      if (isImage) {
+        bodyEl.innerHTML = `
+          <div style="background: rgba(0,0,0,0.5); padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; color: #e2e8f0; font-size: 0.8rem; flex-shrink: 0;">
+            <span>High-Resolution Image / Medical Scan Preview</span>
+            <div style="display: flex; gap: 0.5rem;">
+              <button type="button" class="btn btn-sm btn-ghost" style="color: #38bdf8;" onclick="app.zoomDocImage(1.25)">🔍 Zoom In</button>
+              <button type="button" class="btn btn-sm btn-ghost" style="color: #38bdf8;" onclick="app.zoomDocImage(0.8)">🔍 Zoom Out</button>
+              <button type="button" class="btn btn-sm btn-ghost" style="color: #cbd5e1;" onclick="app.resetDocImage()">Reset</button>
+            </div>
+          </div>
+          <div class="doc-viewer-container" style="flex: 1; padding: 1rem;">
+            <img src="${data}" class="doc-viewer-img" id="doc-active-image" alt="${this.escapeHtml(doc.name)}">
+          </div>
+        `;
+      } else if (isPdf) {
+        bodyEl.innerHTML = `
+          <div style="background: rgba(0,0,0,0.5); padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; color: #e2e8f0; font-size: 0.8rem; flex-shrink: 0;">
+            <span>PDF Clinical Document Viewer</span>
+            <button type="button" class="btn btn-sm btn-ghost" style="color: #38bdf8;" onclick="window.open('${data}', '_blank')">
+              ⇱ Open in Separate Browser Tab
+            </button>
+          </div>
+          <div style="flex: 1; width: 100%; height: 100%;">
+            <iframe src="${data}" class="doc-viewer-frame" title="${this.escapeHtml(doc.name)}"></iframe>
+          </div>
+        `;
+      } else if (isText) {
+        let textContent = '';
+        try {
+          if (data.startsWith('data:text/')) {
+            const parts = data.split(',');
+            textContent = parts[0].includes('base64') ? atob(parts[1]) : decodeURIComponent(parts[1]);
+          } else {
+            textContent = atob(data.split(',')[1]);
+          }
+        } catch (e) {
+          textContent = 'Text preview could not be decoded.';
+        }
+        bodyEl.innerHTML = `
+          <div class="doc-viewer-text">${this.escapeHtml(textContent)}</div>
+        `;
+      } else {
+        bodyEl.innerHTML = `
+          <div class="doc-viewer-container" style="flex-direction: column; gap: 1rem; color: #f8fafc; text-align: center; padding: 2rem;">
+            <div style="font-size: 3rem;">${iconInfo.icon}</div>
+            <div style="font-weight: 700; font-size: 1.15rem;">${this.escapeHtml(doc.name)}</div>
+            <div style="color: #94a3b8; font-size: 0.88rem;">${this.escapeHtml(doc.category || 'Clinical Document')} &bull; ${doc.sizeFormatted || this.formatFileSize(doc.size)}</div>
+            <p style="color: #cbd5e1; max-width: 440px; font-size: 0.85rem; line-height: 1.5;">
+              Direct inline rendering is not supported for this binary format in the embedded viewer. Click the button below to download the original document to your device.
+            </p>
+            <button type="button" class="btn btn-primary" onclick="app.downloadDocument('${doc.id}', '${this.escapeHtml(doc.name)}')">
+              Download "${this.escapeHtml(doc.name)}"
+            </button>
+          </div>
+        `;
+      }
+    }
+
+    this.openModal(document.getElementById('modal-view-document'));
+  }
+
+  zoomDocImage(factor) {
+    const img = document.getElementById('doc-active-image');
+    if (!img) return;
+    const currentScale = parseFloat(img.getAttribute('data-scale') || '1');
+    const newScale = Math.max(0.4, Math.min(4, currentScale * factor));
+    img.setAttribute('data-scale', newScale);
+    img.style.transform = `scale(${newScale})`;
+  }
+
+  resetDocImage() {
+    const img = document.getElementById('doc-active-image');
+    if (!img) return;
+    img.setAttribute('data-scale', '1');
+    img.style.transform = 'scale(1)';
+  }
+
+  downloadDocument(docId, filename) {
+    const doc = this.findDocumentById(docId);
+    if (!doc) {
+      this.showToast('Document not found for download.', 'danger');
+      return;
+    }
+    const data = doc.data || this.docStore.cache.get(docId);
+    if (!data) {
+      this.showToast('Document data could not be retrieved.', 'danger');
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = data;
+    a.download = filename || doc.name || 'document';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    this.showToast(`Downloaded "${doc.name}"`, 'success');
+  }
+
+  async deleteDocument(docId, entityType, entityId, closeViewer = false) {
+    const doc = this.findDocumentById(docId);
+    const docName = doc ? doc.name : 'this document';
+
+    const performDelete = async () => {
+      if (!confirm(`Are you sure you want to permanently delete document "${docName}"? This action cannot be undone.`)) {
+        return;
+      }
+
+      // Remove from target entity
+      if (entityType === 'patient') {
+        const patient = this.getPatientById(entityId);
+        if (patient && Array.isArray(patient.documents)) {
+          patient.documents = patient.documents.filter(d => d.id !== docId);
+        }
+      } else if (entityType === 'consultation') {
+        const consult = this.consultations.find(c => c.id === entityId);
+        if (consult && Array.isArray(consult.documents)) {
+          consult.documents = consult.documents.filter(d => d.id !== docId);
+        }
+      } else if (entityType === 'treatment') {
+        const tx = this.treatments.find(t => t.id === entityId);
+        if (tx && Array.isArray(tx.documents)) {
+          tx.documents = tx.documents.filter(d => d.id !== docId);
+        }
+      } else if (entityType === 'laboratory') {
+        const lab = (this.laboratory || []).find(l => l.id === entityId);
+        if (lab && Array.isArray(lab.documents)) {
+          lab.documents = lab.documents.filter(d => d.id !== docId);
+        }
+      } else if (entityType && this.modalPendingDocs[entityType]) {
+        this.modalPendingDocs[entityType] = this.modalPendingDocs[entityType].filter(d => d.id !== docId);
+        this.renderModalDocsList(entityType);
+      }
+
+      await this.docStore.deleteDocument(docId);
+      this.saveData();
+
+      if (closeViewer) {
+        this.closeModal(document.getElementById('modal-view-document'));
+      }
+
+      // Re-render relevant view
+      if (this.activeView === 'patient-chart' && this.selectedPatientId === entityId) {
+        const patient = this.getPatientById(entityId);
+        if (patient) {
+          this.renderPatientDocuments(patient);
+          const docBadge = document.getElementById('chart-tab-doc-count');
+          if (docBadge) docBadge.textContent = (patient.documents || []).length;
+        }
+      } else if (entityType === 'consultation') {
+        this.renderConsultationsList();
+        const openModal = document.getElementById('modal-view-record');
+        if (openModal && openModal.classList.contains('open')) {
+          this.viewConsultation(entityId);
+        }
+      } else if (entityType === 'treatment') {
+        this.renderTreatmentsList();
+        const openModal = document.getElementById('modal-view-record');
+        if (openModal && openModal.classList.contains('open')) {
+          this.viewTreatment(entityId);
+        }
+      } else if (entityType === 'laboratory') {
+        this.renderLaboratory();
+        const openModal = document.getElementById('modal-view-record');
+        if (openModal && openModal.classList.contains('open')) {
+          this.viewLaboratory(entityId);
+        }
+      }
+
+      this.showToast(`Document "${docName}" permanently deleted.`, 'info');
+    };
+
+    if (!this.isUserAuthorized()) {
+      this.requireAuthorization(`Delete Document: ${docName}`, performDelete);
+    } else {
+      performDelete();
+    }
   }
 
   /* ------------------------------------------------------------------
@@ -637,6 +1657,9 @@ class ChemoApp {
       case 'dashboard':
         this.renderDashboard();
         break;
+      case 'schedule':
+        this.renderSchedule();
+        break;
       case 'patients':
         this.renderPatientsList();
         break;
@@ -651,6 +1674,9 @@ class ChemoApp {
         break;
       case 'reports':
         this.renderReports();
+        break;
+      case 'laboratory':
+        this.renderLaboratory();
         break;
       case 'settings':
         // Static cards with buttons
@@ -672,10 +1698,21 @@ class ChemoApp {
     const navPat = document.getElementById('nav-patient-count');
     const navCon = document.getElementById('nav-consult-count');
     const navTx = document.getElementById('nav-tx-count');
+    const navSch = document.getElementById('nav-schedule-count');
+    const navLab = document.getElementById('nav-lab-count');
 
     if (navPat) navPat.textContent = patCount;
     if (navCon) navCon.textContent = consultCount;
     if (navTx) navTx.textContent = txCount;
+    if (navSch) {
+      const activeSchedulesCount = (this.schedules || []).filter(s => s.status !== 'Cancelled').length;
+      navSch.textContent = activeSchedulesCount;
+    }
+    if (navLab) {
+      navLab.textContent = (this.laboratory || []).length;
+    }
+
+    this.updateTomorrowReminderBadge();
 
     // Dashboard counters
     const dashPat = document.getElementById('stat-total-patients');
@@ -725,7 +1762,7 @@ class ChemoApp {
               </td>
               <td>
                 <strong>${this.escapeHtml(tx.regimenName || 'Protocol')}</strong>
-                <div style="font-size: 0.78rem; color: var(--text-muted);">Cycle ${tx.cycleNumber} of ${tx.cycleTotal || '?'} (Day ${tx.dayOfCycle || 1})</div>
+                <div style="font-size: 0.78rem; color: var(--text-muted);">Cycle ${this.escapeHtml(String(tx.cycleNumber))} of ${this.escapeHtml(String(tx.cycleTotal || '?'))} (Day ${tx.dayOfCycle || 1})</div>
               </td>
               <td>${tx.treatmentDate}</td>
               <td>${this.renderToleranceBadge(tx.toleranceGrade)}</td>
@@ -828,6 +1865,2214 @@ class ChemoApp {
   }
 
   /* ------------------------------------------------------------------
+   * View: Clinical Schedule & Appointments
+   * ------------------------------------------------------------------ */
+  getTodayDateStr() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  getTomorrowDateStr() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  getTomorrowAppointments() {
+    const tomorrowStr = this.getTomorrowDateStr();
+    return (this.schedules || []).filter(s => s.scheduledDate === tomorrowStr && s.status !== 'Cancelled');
+  }
+
+  updateTomorrowReminderBadge() {
+    const appts = this.getTomorrowAppointments();
+    const count = appts.length;
+    const badge = document.getElementById('header-reminder-count');
+    if (badge) {
+      badge.textContent = count;
+      badge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+  }
+
+  ensureInitialSampleSchedules() {
+    const todayStr = this.getTodayDateStr();
+    const tomorrowStr = this.getTomorrowDateStr();
+
+    if (this.schedules && this.schedules.length > 0) {
+      // Ensure sample items track current today & tomorrow dates
+      const hasToday = this.schedules.some(s => s.scheduledDate === todayStr && s.status !== 'Cancelled');
+      const hasTomorrow = this.schedules.some(s => s.scheduledDate === tomorrowStr && s.status !== 'Cancelled');
+      if (!hasToday || !hasTomorrow) {
+        this.schedules.forEach(s => {
+          if (['sch-101', 'sch-102', 'sch-103', 'sch-104', 'sch-105', 'sch-105-lab'].includes(s.id)) s.scheduledDate = todayStr;
+          if (['sch-106', 'sch-107', 'sch-108', 'sch-108-lab'].includes(s.id)) s.scheduledDate = tomorrowStr;
+        });
+      }
+
+      // If no laboratory appointments exist in schedule, inject sample lab appointments
+      const hasLab = this.schedules.some(s => s.type === 'laboratory');
+      if (!hasLab && this.patients && this.patients.length > 0) {
+        const pLab1 = this.patients[2] || this.patients[0];
+        const pLab2 = this.patients[1] || this.patients[0];
+        this.schedules.push(
+          {
+            id: 'sch-105-lab',
+            patientId: pLab1.id,
+            patientName: pLab1.fullName,
+            mrn: pLab1.mrn,
+            type: 'laboratory',
+            scheduledDate: todayStr,
+            scheduledTime: '08:00',
+            durationMinutes: 30,
+            station: 'Laboratory Phlebotomy Station 1',
+            status: 'Scheduled',
+            oncologist: pLab1.primaryOncologist || 'Dr. Evelyn Reed, MD',
+            nurse: 'Phlebotomist Mark Ramos, RMT',
+            regimenName: '',
+            cycleNumber: '',
+            cycleTotal: '',
+            reason: 'STAT CBC with ANC & Platelets Extraction',
+            notes: 'Fasting specimen. Priority turnaround required for oncology clearance.'
+          },
+          {
+            id: 'sch-108-lab',
+            patientId: pLab2.id,
+            patientName: pLab2.fullName,
+            mrn: pLab2.mrn,
+            type: 'laboratory',
+            scheduledDate: tomorrowStr,
+            scheduledTime: '07:30',
+            durationMinutes: 30,
+            station: 'Laboratory Phlebotomy Station 1',
+            status: 'Scheduled',
+            oncologist: pLab2.primaryOncologist || 'Dr. Julian Santos, MD',
+            nurse: 'Phlebotomist Mark Ramos, RMT',
+            regimenName: '',
+            cycleNumber: '',
+            cycleTotal: '',
+            reason: 'Comprehensive Metabolic Panel & Hepatorenal Screening',
+            notes: 'Screen serum creatinine and ALT/AST before Cycle 4 infusion.'
+          }
+        );
+      }
+      this.saveData();
+      return;
+    }
+
+    const p1 = this.patients[0] || { id: 'ICC-P001', fullName: 'Reyes, Elena Cruz', mrn: 'ICC-P001' };
+    const p2 = this.patients[1] || { id: 'ICC-P002', fullName: 'Gomez, Ramon Bautista', mrn: 'ICC-P002' };
+    const p3 = this.patients[2] || { id: 'ICC-P003', fullName: 'Santos, Carmen Valenzuela', mrn: 'ICC-P003' };
+    const p4 = this.patients[3] || { id: 'ICC-P004', fullName: 'Cruz, Antonio Morales', mrn: 'ICC-P004' };
+    const p5 = this.patients[4] || { id: 'ICC-P005', fullName: 'Diaz, Luzviminda Flores', mrn: 'ICC-P005' };
+    const p6 = this.patients[5] || { id: 'ICC-P006', fullName: 'Bautista, Eduardo Mendoza', mrn: 'ICC-P006' };
+    const p7 = this.patients[6] || { id: 'ICC-P007', fullName: 'Mendoza, Teresa Aquino', mrn: 'ICC-P007' };
+
+    this.schedules = [
+      // Today
+      {
+        id: 'sch-101',
+        patientId: p1.id,
+        patientName: p1.fullName,
+        mrn: p1.mrn,
+        type: 'consultation',
+        scheduledDate: todayStr,
+        scheduledTime: '08:30',
+        durationMinutes: 45,
+        station: 'Consultation Exam Room 1',
+        status: 'Checked-In',
+        oncologist: 'Dr. Evelyn Reed, MD',
+        nurse: 'Nurse Sarah Jenkins, RN',
+        regimenName: '',
+        cycleNumber: '',
+        cycleTotal: '',
+        reason: 'Pre-Chemotherapy Clearance & CBC Review (Cycle 4 Preparation)',
+        notes: 'Check ANC (>1.5) and Platelets (>100) before clearance.'
+      },
+      {
+        id: 'sch-102',
+        patientId: p2.id,
+        patientName: p2.fullName,
+        mrn: p2.mrn,
+        type: 'treatment',
+        scheduledDate: todayStr,
+        scheduledTime: '09:30',
+        durationMinutes: 180,
+        station: 'Infusion Chair #1',
+        status: 'Scheduled',
+        oncologist: 'Dr. Evelyn Reed, MD',
+        nurse: 'Nurse Sarah Jenkins, RN',
+        regimenName: 'mFOLFOX6',
+        cycleNumber: '4',
+        cycleTotal: '12',
+        reason: 'mFOLFOX6 Cycle 4 Infusion (Oxaliplatin + Leucovorin + 5-FU)',
+        notes: 'Cold sensitivity precautions. Dual independent verification required.'
+      },
+      {
+        id: 'sch-103',
+        patientId: p3.id,
+        patientName: p3.fullName,
+        mrn: p3.mrn,
+        type: 'consultation',
+        scheduledDate: todayStr,
+        scheduledTime: '10:45',
+        durationMinutes: 30,
+        station: 'Consultation Exam Room 2',
+        status: 'Scheduled',
+        oncologist: 'Dr. Julian Santos, MD',
+        nurse: 'Nurse Michael Chang, RN',
+        regimenName: '',
+        cycleNumber: '',
+        cycleTotal: '',
+        reason: 'Mid-treatment Clinical Re-assessment & Neuropathy Check',
+        notes: 'Assess sensory neuropathy CTCAE grade from prior Paclitaxel.'
+      },
+      {
+        id: 'sch-104',
+        patientId: p4.id,
+        patientName: p4.fullName,
+        mrn: p4.mrn,
+        type: 'treatment',
+        scheduledDate: todayStr,
+        scheduledTime: '13:00',
+        durationMinutes: 60,
+        station: 'Infusion Chair #3',
+        status: 'Scheduled',
+        oncologist: 'Dr. Evelyn Reed, MD',
+        nurse: 'Nurse Sarah Jenkins, RN',
+        regimenName: 'Pembrolizumab (Keytruda)',
+        cycleNumber: '6',
+        cycleTotal: '18',
+        reason: 'Pembrolizumab 200mg IV Infusion over 30 mins',
+        notes: 'Pre-infusion vitals check. Screen for immune-related adverse events.'
+      },
+      {
+        id: 'sch-105',
+        patientId: p5.id,
+        patientName: p5.fullName,
+        mrn: p5.mrn,
+        type: 'treatment',
+        scheduledDate: todayStr,
+        scheduledTime: '14:15',
+        durationMinutes: 240,
+        station: 'Infusion Bed #1 (Private)',
+        status: 'Scheduled',
+        oncologist: 'Dr. Julian Santos, MD',
+        nurse: 'Nurse Michael Chang, RN',
+        regimenName: 'Carboplatin + Paclitaxel',
+        cycleNumber: '2',
+        cycleTotal: '6',
+        reason: 'Carbo/Pacli Infusion Session with full premeds',
+        notes: 'Dexamethasone 20mg IV, Diphenhydramine 50mg IV, Ranitidine 50mg IV given 30m prior.'
+      },
+      {
+        id: 'sch-105-lab',
+        patientId: p3.id,
+        patientName: p3.fullName,
+        mrn: p3.mrn,
+        type: 'laboratory',
+        scheduledDate: todayStr,
+        scheduledTime: '08:00',
+        durationMinutes: 30,
+        station: 'Laboratory Phlebotomy Station 1',
+        status: 'Scheduled',
+        oncologist: p3.primaryOncologist || 'Dr. Evelyn Reed, MD',
+        nurse: 'Phlebotomist Mark Ramos, RMT',
+        regimenName: '',
+        cycleNumber: '',
+        cycleTotal: '',
+        reason: 'STAT CBC with ANC & Platelets Extraction',
+        notes: 'Fasting specimen. Priority turnaround required for oncology clearance.'
+      },
+      // Tomorrow
+      {
+        id: 'sch-106',
+        patientId: p1.id,
+        patientName: p1.fullName,
+        mrn: p1.mrn,
+        type: 'treatment',
+        scheduledDate: tomorrowStr,
+        scheduledTime: '09:00',
+        durationMinutes: 120,
+        station: 'Infusion Chair #2',
+        status: 'Scheduled',
+        oncologist: 'Dr. Evelyn Reed, MD',
+        nurse: 'Nurse Sarah Jenkins, RN',
+        regimenName: 'AC (Doxorubicin + Cyclophosphamide)',
+        cycleNumber: '4',
+        cycleTotal: '8',
+        reason: 'AC Protocol Cycle 4 - Final anthracycline cycle before taxane',
+        notes: 'Vesicant alert: Doxorubicin push over 15 mins via Port-A-Cath.'
+      },
+      {
+        id: 'sch-107',
+        patientId: p6.id,
+        patientName: p6.fullName,
+        mrn: p6.mrn,
+        type: 'consultation',
+        scheduledDate: tomorrowStr,
+        scheduledTime: '10:30',
+        durationMinutes: 45,
+        station: 'Consultation Exam Room 1',
+        status: 'Scheduled',
+        oncologist: 'Dr. Evelyn Reed, MD',
+        nurse: 'Nurse Sarah Jenkins, RN',
+        regimenName: '',
+        cycleNumber: '',
+        cycleTotal: '',
+        reason: 'Pre-chemo Baseline Cardiac & Echo Clearance for R-CHOP',
+        notes: 'LVEF report from cardiologist required.'
+      },
+      {
+        id: 'sch-108',
+        patientId: p7.id,
+        patientName: p7.fullName,
+        mrn: p7.mrn,
+        type: 'treatment',
+        scheduledDate: tomorrowStr,
+        scheduledTime: '13:30',
+        durationMinutes: 210,
+        station: 'Infusion Chair #4',
+        status: 'Scheduled',
+        oncologist: 'Dr. Julian Santos, MD',
+        nurse: 'Nurse Michael Chang, RN',
+        regimenName: 'R-CHOP',
+        cycleNumber: '5',
+        cycleTotal: '6',
+        reason: 'Rituximab IV slow titration followed by CHOP',
+        notes: 'Pre-medicate: Paracetamol 1000mg + Diphenhydramine 50mg.'
+      },
+      {
+        id: 'sch-108-lab',
+        patientId: p2.id,
+        patientName: p2.fullName,
+        mrn: p2.mrn,
+        type: 'laboratory',
+        scheduledDate: tomorrowStr,
+        scheduledTime: '07:30',
+        durationMinutes: 30,
+        station: 'Laboratory Phlebotomy Station 1',
+        status: 'Scheduled',
+        oncologist: p2.primaryOncologist || 'Dr. Julian Santos, MD',
+        nurse: 'Phlebotomist Mark Ramos, RMT',
+        regimenName: '',
+        cycleNumber: '',
+        cycleTotal: '',
+        reason: 'Comprehensive Metabolic Panel & Hepatorenal Screening',
+        notes: 'Screen serum creatinine and ALT/AST before Cycle 4 infusion.'
+      },
+      // Upcoming days
+      {
+        id: 'sch-109',
+        patientId: p2.id,
+        patientName: p2.fullName,
+        mrn: p2.mrn,
+        type: 'consultation',
+        scheduledDate: '2026-11-09',
+        scheduledTime: '09:00',
+        durationMinutes: 30,
+        station: 'Consultation Exam Room 1',
+        status: 'Scheduled',
+        oncologist: 'Dr. Evelyn Reed, MD',
+        nurse: 'Nurse Sarah Jenkins, RN',
+        regimenName: '',
+        cycleNumber: '',
+        cycleTotal: '',
+        reason: 'Post-chemo Nadir CBC Check & Toxicity Scoring',
+        notes: 'Evaluate neutropenia & diarrhea severity.'
+      },
+      {
+        id: 'sch-110',
+        patientId: p3.id,
+        patientName: p3.fullName,
+        mrn: p3.mrn,
+        type: 'treatment',
+        scheduledDate: '2026-11-10',
+        scheduledTime: '09:30',
+        durationMinutes: 180,
+        station: 'Infusion Chair #1',
+        status: 'Scheduled',
+        oncologist: 'Dr. Julian Santos, MD',
+        nurse: 'Nurse Michael Chang, RN',
+        regimenName: 'Paclitaxel Weekly',
+        cycleNumber: '7',
+        cycleTotal: '12',
+        reason: 'Weekly Paclitaxel 80 mg/m² Infusion',
+        notes: 'Check absolute neutrophil count before starting infusion.'
+      },
+      {
+        id: 'sch-111',
+        patientId: p5.id,
+        patientName: p5.fullName,
+        mrn: p5.mrn,
+        type: 'consultation',
+        scheduledDate: '2026-11-12',
+        scheduledTime: '11:00',
+        durationMinutes: 45,
+        station: 'Consultation Exam Room 2',
+        status: 'Scheduled',
+        oncologist: 'Dr. Julian Santos, MD',
+        nurse: 'Nurse Michael Chang, RN',
+        regimenName: '',
+        cycleNumber: '',
+        cycleTotal: '',
+        reason: 'Cycle 3 Clearance & Renal Function Review',
+        notes: 'Serum creatinine and creatinine clearance verification.'
+      }
+    ];
+
+    this.saveData();
+  }
+
+  /* ------------------------------------------------------------------
+   * Tomorrow's Schedule Reminder Pop-Up & Roster
+   * ------------------------------------------------------------------ */
+  checkAndShowTomorrowReminder(force = false) {
+    const tomorrowStr = this.getTomorrowDateStr();
+    const todayStr = this.getTodayDateStr();
+    const tomorrowAppts = this.getTomorrowAppointments();
+
+    this.updateTomorrowReminderBadge();
+
+    if (!force) {
+      // Check if user dismissed for today or if already shown in this session
+      const dismissed = localStorage.getItem('ICC_dismiss_tomorrow_reminder_' + todayStr);
+      const shownSession = sessionStorage.getItem('ICC_shown_tomorrow_reminder_' + todayStr);
+      if (dismissed || shownSession) return;
+      if (tomorrowAppts.length === 0) return;
+    }
+
+    sessionStorage.setItem('ICC_shown_tomorrow_reminder_' + todayStr, 'true');
+    this.renderTomorrowReminderModal(tomorrowAppts, tomorrowStr);
+    const modal = document.getElementById('modal-tomorrow-reminder');
+    if (modal) this.openModal(modal);
+  }
+
+  renderTomorrowReminderModal(appts, tomorrowStr) {
+    const listContainer = document.getElementById('reminder-modal-patient-list');
+    const dateLabel = document.getElementById('reminder-modal-date-label');
+    const countSummary = document.getElementById('reminder-modal-count-summary');
+    const consultBadge = document.getElementById('reminder-modal-consult-count');
+    const txBadge = document.getElementById('reminder-modal-tx-count');
+
+    const formattedDate = new Date(tomorrowStr + 'T00:00:00').toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
+
+    if (dateLabel) {
+      dateLabel.textContent = `${formattedDate} • Patient call sheet & clinical preparation checklist`;
+    }
+
+    const consults = appts.filter(s => s.type === 'consultation');
+    const txs = appts.filter(s => s.type === 'treatment');
+    const labs = appts.filter(s => s.type === 'laboratory');
+
+    if (countSummary) countSummary.textContent = `${appts.length} Patient${appts.length === 1 ? '' : 's'} Scheduled Tomorrow`;
+    if (consultBadge) consultBadge.textContent = `🌿 ${consults.length} Consultation${consults.length === 1 ? '' : 's'}`;
+    if (txBadge) txBadge.textContent = `🟡 ${txs.length} Treatment${txs.length === 1 ? '' : 's'}`;
+    const labBadge = document.getElementById('reminder-modal-lab-count');
+    if (labBadge) labBadge.textContent = `🧪 ${labs.length} Laboratory`;
+
+    if (!listContainer) return;
+
+    if (appts.length === 0) {
+      listContainer.innerHTML = `
+        <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted);">
+          <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📅</div>
+          <h4 style="color: var(--text-dark); margin-bottom: 0.35rem;">No Appointments Scheduled for Tomorrow</h4>
+          <p style="font-size: 0.88rem; max-width: 420px; margin: 0 auto 1rem auto;">
+            There are currently no patient consultations, chemotherapy infusions, or laboratory tests booked for ${formattedDate}.
+          </p>
+          <button type="button" class="btn btn-primary" onclick="app.closeModal(document.getElementById('modal-tomorrow-reminder')); app.openNewScheduleModal('consultation');">
+            + Schedule Tomorrow's Appointment
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    // Sort by scheduled time
+    const sorted = [...appts].sort((a, b) => (a.scheduledTime || '00:00').localeCompare(b.scheduledTime || '00:00'));
+
+    listContainer.innerHTML = sorted.map(s => {
+      const p = this.getPatientById(s.patientId);
+      const name = p ? p.fullName : (s.patientName || 'Patient');
+      const mrn = p ? p.mrn : (s.mrn || 'MRN');
+      const diag = p ? p.primaryDiagnosis : 'Oncology Patient';
+      const stage = p ? p.stage : '';
+      const phone = p ? (p.phone || p.contactPhone || 'No contact phone recorded') : 'No phone recorded';
+      const allergies = p ? (Array.isArray(p.allergies) ? p.allergies.join(', ') : String(p.allergies || '')) : '';
+      const initials = (name || 'PT').split(/[\s,]+/).filter(Boolean).slice(0, 2).map(n => n[0].toUpperCase()).join('');
+      const isConsult = s.type === 'consultation';
+      const isLab = s.type === 'laboratory';
+
+      return `
+        <div class="reminder-patient-card ${isConsult ? 'reminder-consultation-card' : (isLab ? 'reminder-lab-card' : 'reminder-treatment-card')}" id="reminder-card-${s.id}">
+          
+          <div class="reminder-patient-header">
+            <div style="display: flex; align-items: center; gap: 0.65rem;">
+              <div class="schedule-avatar-pill ${isConsult ? 'consult-avatar' : (isLab ? 'lab-avatar' : 'tx-avatar')}" style="width: 38px; height: 38px; font-size: 0.85rem;">
+                ${initials}
+              </div>
+              <div>
+                <a class="reminder-patient-name" onclick="app.navigateTo('patient-chart', '${s.patientId}'); app.closeModal(document.getElementById('modal-tomorrow-reminder'));" title="Open Medical Chart">
+                  ${this.escapeHtml(name)}
+                </a>
+                <span class="patient-mrn" style="margin-left: 0.35rem; font-size: 0.78rem;">${this.escapeHtml(mrn)}</span>
+                <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 1px;">
+                  ${this.escapeHtml(diag)}${stage ? ` &bull; ${this.escapeHtml(stage)}` : ''}
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              ${isConsult 
+                ? `<span class="badge" style="background: #f0fdf4; color: #166534; border: 1px solid #86efac; font-weight: 700;">🌿 Consultation</span>`
+                : (isLab 
+                    ? `<span class="badge" style="background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; font-weight: 700;">🧪 Laboratory</span>`
+                    : `<span class="badge" style="background: #fefce8; color: #854d0e; border: 1px solid #fde047; font-weight: 700;">🟡 Chemotherapy</span>`)}
+              <span class="badge badge-primary" style="font-weight: 700;">🕒 ${s.scheduledTime || '09:00'}</span>
+            </div>
+          </div>
+
+          <!-- Meta Grid -->
+          <div class="reminder-meta-grid">
+            <div>
+              <strong>Station:</strong> 🪑 ${this.escapeHtml(s.station || (isConsult ? 'Exam Room 1' : 'Infusion Chair'))}
+            </div>
+            <div>
+              <strong>Contact Phone:</strong> 
+              ${phone && (phone.includes('+') || phone.includes('09') || phone.includes('9'))
+                ? `<a href="tel:${phone.replace(/\s+/g, '')}" style="color: var(--primary); font-weight: 700; text-decoration: none;">📞 ${this.escapeHtml(phone)}</a>`
+                : `<span style="color: var(--text-muted);">${this.escapeHtml(phone)}</span>`}
+            </div>
+            <div>
+              <strong>Attending Staff:</strong> 👨‍⚕️ ${this.escapeHtml(s.oncologist || (p ? p.primaryOncologist : 'Oncologist'))}
+            </div>
+            <div>
+              <strong>${isConsult ? 'Clinical Clearance:' : 'Chemo Protocol:'}</strong> 
+              ${!isConsult && s.regimenName 
+                ? `<span style="font-weight: 700; color: #a16207;">${this.escapeHtml(s.regimenName)}</span> ${s.cycleNumber ? `(C${this.escapeHtml(String(s.cycleNumber))})` : ''}` 
+                : `<span style="font-weight: 600;">${this.escapeHtml(s.reason || 'Clearance & Lab Review')}</span>`}
+            </div>
+          </div>
+
+          <!-- Notes / Preparation Alerts -->
+          ${allergies && allergies.toLowerCase() !== 'none' && allergies.toLowerCase() !== 'n/a' ? `
+            <div style="margin-bottom: 0.4rem;">
+              <span class="badge badge-danger" style="font-size: 0.72rem; padding: 2px 7px;">⚠️ Allergy: ${this.escapeHtml(allergies)}</span>
+            </div>
+          ` : ''}
+
+          ${s.notes ? `
+            <div class="reminder-notes-box">
+              <span>📋</span>
+              <div><strong>Preparation Instructions:</strong> ${this.escapeHtml(s.notes)}</div>
+            </div>
+          ` : ''}
+
+          <!-- Quick Actions Footer -->
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);">
+            <div id="reminder-call-status-${s.id}">
+              <button type="button" class="btn btn-sm btn-outline" onclick="app.toggleReminderCallConfirmed('${s.id}')" style="font-size: 0.76rem; padding: 2px 8px;" title="Mark patient notified by phone">
+                📞 Mark Call Confirmed
+              </button>
+            </div>
+            <div style="display: flex; gap: 0.4rem; align-items: center;">
+              <button type="button" class="btn btn-sm btn-ghost" onclick="app.openEditScheduleModal('${s.id}'); app.closeModal(document.getElementById('modal-tomorrow-reminder'));" style="font-size: 0.76rem;">
+                Reschedule
+              </button>
+              <button type="button" class="btn btn-sm btn-primary" onclick="app.navigateTo('patient-chart', '${s.patientId}'); app.closeModal(document.getElementById('modal-tomorrow-reminder'));" style="font-size: 0.76rem; padding: 3px 10px;">
+                Open Patient Chart &rarr;
+              </button>
+            </div>
+          </div>
+
+        </div>
+      `;
+    }).join('');
+  }
+
+  toggleReminderCallConfirmed(scheduleId) {
+    const el = document.getElementById(`reminder-call-status-${scheduleId}`);
+    if (el) {
+      el.innerHTML = `
+        <span class="badge" style="background: #dcfce7; color: #166534; border: 1px solid #86efac; font-weight: 700; font-size: 0.78rem;">
+          ✓ Patient Notified & Confirmed
+        </span>
+      `;
+      this.showToast('Patient call logged as confirmed for tomorrow', 'success');
+    }
+  }
+
+  printTomorrowSchedule() {
+    const tomorrowStr = this.getTomorrowDateStr();
+    const appts = this.getTomorrowAppointments();
+    const formattedDate = new Date(tomorrowStr + 'T00:00:00').toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
+
+    const consults = appts.filter(s => s.type === 'consultation');
+    const txs = appts.filter(s => s.type === 'treatment');
+    const labs = appts.filter(s => s.type === 'laboratory');
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      window.print();
+      return;
+    }
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Tomorrow's Clinical Call Roster - ${formattedDate}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 25px; color: #1e293b; }
+          .header { border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px; }
+          h1 { margin: 0; font-size: 20px; color: #0f172a; }
+          .sub { font-size: 13px; color: #64748b; margin-top: 4px; }
+          .summary { display: flex; gap: 15px; margin-bottom: 20px; font-size: 13px; font-weight: bold; flex-wrap: wrap; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+          th { background: #f1f5f9; padding: 8px 10px; text-align: left; border: 1px solid #cbd5e1; font-size: 11px; text-transform: uppercase; }
+          td { padding: 8px 10px; border: 1px solid #cbd5e1; vertical-align: top; }
+          .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+          .badge-consult { background: #dcfce7; color: #166534; }
+          .badge-tx { background: #fefce8; color: #854d0e; }
+          .badge-lab { background: #e0f2fe; color: #0284c7; }
+          .signature-block { margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; }
+          @media print { button { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Imus Chemotherapy Center &bull; Tomorrow's Clinical Call & Prep Roster</h1>
+          <div class="sub">Scheduled for: <strong>${formattedDate}</strong> &bull; Printed: ${new Date().toLocaleString()}</div>
+        </div>
+        <div class="summary">
+          <span>Total: ${appts.length} Appointments</span>
+          <span>Consultations: ${consults.length}</span>
+          <span>Treatments: ${txs.length}</span>
+          <span>Laboratories: ${labs.length}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Type</th>
+              <th>Patient Full Name & MRN</th>
+              <th>Contact Phone</th>
+              <th>Primary Cancer Diagnosis</th>
+              <th>Station</th>
+              <th>Regimen / Clearance Purpose</th>
+              <th>Staff Assignment</th>
+              <th>Call Confirmed</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${appts.map(s => {
+              const p = this.getPatientById(s.patientId);
+              const name = p ? p.fullName : (s.patientName || 'Patient');
+              const mrn = p ? p.mrn : (s.mrn || 'MRN');
+              const diag = p ? p.primaryDiagnosis : '';
+              const phone = p ? (p.phone || p.contactPhone || '-') : '-';
+              const isConsult = s.type === 'consultation';
+              const isLab = s.type === 'laboratory';
+              return `
+                <tr>
+                  <td><strong>${s.scheduledTime || '09:00'}</strong></td>
+                  <td><span class="badge ${isConsult ? 'badge-consult' : (isLab ? 'badge-lab' : 'badge-tx')}">${isConsult ? 'Consultation' : (isLab ? 'Laboratory' : 'Treatment')}</span></td>
+                  <td><strong>${name}</strong><br><small>${mrn}</small></td>
+                  <td>${phone}</td>
+                  <td>${diag}</td>
+                  <td>${s.station || '-'}</td>
+                  <td>${!isConsult && s.regimenName ? `<strong>${s.regimenName}</strong> (C${s.cycleNumber || '1'})<br>` : ''}${s.reason || s.notes || '-'}</td>
+                  <td>${s.oncologist || '-'} / ${s.nurse || '-'}</td>
+                  <td style="text-align: center; width: 60px;">[ &nbsp; ]</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+        <div class="signature-block">
+          <div>Prepared by: ________________________ (Charge Nurse)</div>
+          <div>Reviewed by: ________________________ (Attending Oncologist)</div>
+        </div>
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+      </html>
+    `);
+    printWin.document.close();
+  }
+
+  createOrUpdateLinkedSchedule(details) {
+    if (!details || !details.patientId || !details.scheduledDate) return;
+    const patient = this.getPatientById(details.patientId);
+    const patName = patient ? patient.fullName : 'Patient';
+    const mrn = patient ? patient.mrn : '';
+
+    const existingIdx = (this.schedules || []).findIndex(s => 
+      s.patientId === details.patientId && 
+      s.scheduledDate === details.scheduledDate && 
+      s.type === details.type
+    );
+
+    const schItem = {
+      id: existingIdx !== -1 ? this.schedules[existingIdx].id : ('sch-' + Date.now()),
+      patientId: details.patientId,
+      patientName: patName,
+      mrn: mrn,
+      type: details.type || 'consultation',
+      scheduledDate: details.scheduledDate,
+      scheduledTime: details.scheduledTime || '09:00',
+      durationMinutes: details.durationMinutes || (details.type === 'treatment' ? 180 : (details.type === 'laboratory' ? 30 : 45)),
+      station: details.station || (details.type === 'treatment' ? 'Infusion Chair #1' : (details.type === 'laboratory' ? 'Laboratory Phlebotomy Station 1' : 'Consultation Exam Room 1')),
+      status: details.status || 'Scheduled',
+      oncologist: details.oncologist || (patient ? patient.primaryOncologist : ''),
+      nurse: details.nurse || (patient ? patient.primaryNurse : ''),
+      regimenName: details.regimenName || '',
+      cycleNumber: details.cycleNumber || '',
+      cycleTotal: details.cycleTotal || '',
+      reason: details.reason || (details.type === 'treatment' ? 'Chemotherapy Treatment Session' : (details.type === 'laboratory' ? 'Laboratory & Diagnostic Extraction' : 'Pre-Chemo Clearance')),
+      notes: details.notes || ''
+    };
+
+    if (existingIdx !== -1) {
+      this.schedules[existingIdx] = schItem;
+    } else {
+      this.schedules.push(schItem);
+    }
+
+    this.saveData();
+  }
+
+  renderSchedule() {
+    const container = document.getElementById('schedule-timeline-container');
+    if (!container) return;
+
+    // Ensure all schedule patient names and MRNs are in sync with patients database
+    (this.schedules || []).forEach(s => {
+      if (s.patientId) {
+        const p = this.getPatientById(s.patientId);
+        if (p) {
+          s.patientName = p.fullName;
+          s.mrn = p.mrn;
+        }
+      }
+    });
+
+    // Dates calculation
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
+    
+    const tomDate = new Date(today);
+    tomDate.setDate(tomDate.getDate() + 1);
+    const tomorrowStr = tomDate.toISOString().slice(0, 10);
+
+    const endWeekDate = new Date(today);
+    endWeekDate.setDate(endWeekDate.getDate() + 7);
+    const endOfWeekStr = endWeekDate.toISOString().slice(0, 10);
+
+    const endNextWeekDate = new Date(today);
+    endNextWeekDate.setDate(endNextWeekDate.getDate() + 14);
+    const endOfNextWeekStr = endNextWeekDate.toISOString().slice(0, 10);
+
+    const schedules = this.schedules || [];
+
+    // Active schedules
+    const activeSchedules = schedules.filter(s => s.status !== 'Cancelled');
+    const todaySchedules = activeSchedules.filter(s => s.scheduledDate === todayStr);
+    const todayConsults = todaySchedules.filter(s => s.type === 'consultation').length;
+    const todayTx = todaySchedules.filter(s => s.type === 'treatment').length;
+    const todayLabs = todaySchedules.filter(s => s.type === 'laboratory').length;
+
+    const elToday = document.getElementById('stat-schedule-today-count');
+    const elTodaySub = document.getElementById('stat-schedule-today-sub');
+    if (elToday) elToday.textContent = todaySchedules.length;
+    if (elTodaySub) elTodaySub.textContent = `${todayConsults} consults, ${todayTx} treatments${todayLabs > 0 ? `, ${todayLabs} labs` : ''}`;
+
+    // Apply Filters: "From" and "To" Date Range
+    const fromDate = this.scheduleDateFrom || '';
+    const toDate = this.scheduleDateTo || '';
+    const typeFilter = this.scheduleTypeFilter || 'all';
+    const statusFilter = this.scheduleStatusFilter || 'all';
+    const search = (this.scheduleSearchQuery || '').toLowerCase().trim();
+
+    let filtered = schedules.filter(s => {
+      // Date range filter between "from" and "to"
+      if (fromDate && s.scheduledDate < fromDate) {
+        return false;
+      }
+      if (toDate && s.scheduledDate > toDate) {
+        return false;
+      }
+
+      // Type filter
+      if (typeFilter !== 'all' && s.type !== typeFilter) return false;
+
+      // Status filter
+      if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+
+      // Search query
+      if (search) {
+        const p = this.getPatientById(s.patientId);
+        const pName = (p ? p.fullName : s.patientName || '').toLowerCase();
+        const pMrn = (p ? p.mrn : s.mrn || '').toLowerCase();
+        const onc = (s.oncologist || '').toLowerCase();
+        const nurse = (s.nurse || '').toLowerCase();
+        const reg = (s.regimenName || '').toLowerCase();
+        const reason = (s.reason || '').toLowerCase();
+        const station = (s.station || '').toLowerCase();
+
+        const match = pName.includes(search) || 
+                      pMrn.includes(search) || 
+                      onc.includes(search) || 
+                      nurse.includes(search) || 
+                      reg.includes(search) || 
+                      reason.includes(search) || 
+                      station.includes(search);
+        if (!match) return false;
+      }
+
+      return true;
+    });
+
+    // Chronological Sort
+    filtered.sort((a, b) => {
+      if (a.scheduledDate !== b.scheduledDate) {
+        return a.scheduledDate.localeCompare(b.scheduledDate);
+      }
+      return (a.scheduledTime || '00:00').localeCompare(b.scheduledTime || '00:00');
+    });
+
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div class="panel" style="text-align: center; padding: 3rem 1.5rem; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px;">
+          <div style="font-size: 3rem; margin-bottom: 0.75rem;">📅</div>
+          <h3 style="margin-bottom: 0.35rem; color: var(--text-dark);">No Scheduled Appointments Found</h3>
+          <p style="color: var(--text-muted); font-size: 0.9rem; max-width: 480px; margin: 0 auto 1.25rem auto;">
+            ${fromDate || toDate 
+              ? `No consultations or treatments were found between <strong>${this.escapeHtml(fromDate || 'the beginning')}</strong> and <strong>${this.escapeHtml(toDate || 'the end')}</strong>.` 
+              : 'There are no consultations or treatments matching your current filter criteria.'}
+          </p>
+          <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+            <button class="btn btn-primary" onclick="app.clearScheduleDateFilter()">Show All Scheduled Patients</button>
+            <button class="btn btn-secondary" onclick="app.openNewScheduleModal()">+ Schedule New Appointment</button>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    const getInitials = (name) => {
+      if (!name) return 'PT';
+      return name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map(n => n[0].toUpperCase()).join('');
+    };
+
+    // Render Clinical Schedule List: Date First, then Patient Name
+    container.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.85rem; padding: 0.6rem 1rem; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; flex-wrap: wrap; gap: 0.5rem;">
+          <div style="font-size: 0.86rem; color: var(--text-dark); font-weight: 600; display: flex; align-items: center; gap: 6px;">
+            <span>📋 Scheduled Patients:</span>
+            <span class="badge badge-primary" style="font-size: 0.78rem;">${filtered.length} ${filtered.length === 1 ? 'Appointment' : 'Appointments'}</span>
+            ${fromDate || toDate ? `<span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">(${fromDate || 'Start'} to ${toDate || 'End'})</span>` : '<span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">(All Dates)</span>'}
+          </div>
+          <button type="button" class="btn btn-sm btn-ghost" onclick="app.clearScheduleDateFilter()" style="font-size: 0.76rem; padding: 2px 8px; color: var(--text-muted);">
+            ✕ Clear Filter
+          </button>
+        </div>
+        <div class="schedule-list-container">
+          ${filtered.map(s => {
+            const p = this.getPatientById(s.patientId);
+            const patName = p ? p.fullName : (s.patientName || 'Patient');
+            const patMrn = p ? p.mrn : (s.mrn || 'MRN');
+            const patDiagnosis = p ? p.primaryDiagnosis : 'Oncology Patient';
+            const patStage = p ? p.stage : '';
+            const patAllergies = p ? (Array.isArray(p.allergies) ? p.allergies.join(', ') : String(p.allergies || '')) : '';
+            const initials = getInitials(patName);
+            const isConsult = s.type === 'consultation';
+            const isLab = s.type === 'laboratory';
+
+            // Format Day label
+            let dayLabel = '';
+            if (s.scheduledDate === todayStr) {
+              dayLabel = '<span class="badge" style="background: #dbeafe; color: #1e40af; font-weight: 700;">TODAY</span>';
+            } else if (s.scheduledDate === tomorrowStr) {
+              dayLabel = '<span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 700;">TOMORROW</span>';
+            } else {
+              const dt = new Date(s.scheduledDate + 'T00:00:00');
+              dayLabel = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            }
+
+            let statusBadge = '';
+            if (s.status === 'Checked-In') {
+              statusBadge = `<span class="badge" style="background:#e0e7ff; color:#3730a3; font-weight:700;">✓ Checked In</span>`;
+            } else if (s.status === 'Completed') {
+              statusBadge = `<span class="badge badge-success">Completed</span>`;
+            } else if (s.status === 'Cancelled') {
+              statusBadge = `<span class="badge badge-secondary" style="text-decoration: line-through;">Cancelled</span>`;
+            } else {
+              statusBadge = `<span class="badge badge-primary">Scheduled</span>`;
+            }
+
+            return `
+              <div class="schedule-list-card ${isConsult ? 'consult-item' : (isLab ? 'lab-item' : 'tx-item')}">
+                
+                <!-- 1. DATE FIRST -->
+                <div class="schedule-list-date-col">
+                  <div class="schedule-list-date-val">
+                    <span>📅</span> <span>${s.scheduledDate}</span>
+                  </div>
+                  <div class="schedule-list-time-val">
+                    <span>🕒</span> <span>${s.scheduledTime || '09:00'}</span>
+                    <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">(${s.durationMinutes || 60}m)</span>
+                  </div>
+                  <div class="schedule-list-day-label">
+                    ${dayLabel}
+                  </div>
+                </div>
+
+                <!-- 2. PATIENT NAME NEXT -->
+                <div class="schedule-list-patient-col">
+                  <div class="schedule-avatar-pill ${isConsult ? 'consult-avatar' : (isLab ? 'lab-avatar' : 'tx-avatar')}">
+                    ${initials}
+                  </div>
+                  <div style="min-width: 0;">
+                    <a class="schedule-list-name-link" onclick="app.navigateTo('patient-chart', '${s.patientId}')" title="View Patient Chart">
+                      ${this.escapeHtml(patName)}
+                    </a>
+                    <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">
+                      <strong>${this.escapeHtml(patMrn)}</strong> &bull; ${this.escapeHtml(patStage || 'Oncology')}
+                    </div>
+                    <div style="font-size: 0.74rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px;" title="${this.escapeHtml(patDiagnosis)}">
+                      ${this.escapeHtml(patDiagnosis)}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 3. CLINICAL DETAILS -->
+                <div class="schedule-list-details-col">
+                  <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                    ${isConsult 
+                      ? `<span class="badge" style="background: #f0fdf4; color: #166534; border: 1px solid #86efac; font-weight: 700;">🌿 Consultation</span>`
+                      : (isLab 
+                          ? `<span class="badge" style="background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; font-weight: 700;">🧪 Laboratory</span>`
+                          : `<span class="badge" style="background: #fefce8; color: #854d0e; border: 1px solid #fde047; font-weight: 700;">🟡 Treatment</span>`)}
+                    <span class="schedule-station-badge">🪑 ${this.escapeHtml(s.station || (isLab ? 'Laboratory Unit' : 'Clinical Unit'))}</span>
+                    ${patAllergies && patAllergies.toLowerCase() !== 'none' && patAllergies.toLowerCase() !== 'n/a'
+                      ? `<span class="badge badge-danger" style="font-size: 0.68rem; padding: 1px 5px;">⚠️ ${this.escapeHtml(patAllergies)}</span>` : ''}
+                  </div>
+
+                  <div style="font-size: 0.85rem; color: var(--text-dark);">
+                    ${!isConsult && !isLab && s.regimenName 
+                      ? `<strong style="color: #a16207;">${this.escapeHtml(s.regimenName)}</strong> ${s.cycleNumber ? `(Cycle ${this.escapeHtml(String(s.cycleNumber))}${s.cycleTotal ? ` of ${this.escapeHtml(String(s.cycleTotal))}` : ''})` : ''} &bull; ` 
+                      : ''}
+                    <span>${this.escapeHtml(s.reason || (isConsult ? 'Pre-Chemo Clearance' : (isLab ? 'Blood Extraction & Diagnostics' : 'Chemo Infusion')))}</span>
+                  </div>
+
+                  <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 0.85rem; flex-wrap: wrap;">
+                    ${s.oncologist ? `<span>👨‍⚕️ ${this.escapeHtml(s.oncologist)}</span>` : ''}
+                    ${s.nurse ? `<span>👩‍⚕️ ${this.escapeHtml(s.nurse)}</span>` : ''}
+                    ${s.notes ? `<span style="font-style: italic;">📝 ${this.escapeHtml(s.notes)}</span>` : ''}
+                  </div>
+                </div>
+
+                <!-- 4. STATUS & ACTIONS -->
+                <div class="schedule-list-actions-col">
+                  ${statusBadge}
+
+                  ${s.status === 'Scheduled' ? `
+                    <button class="btn btn-sm btn-outline-primary" onclick="app.checkInSchedule('${s.id}')" title="Check In">
+                      Check In
+                    </button>
+                  ` : ''}
+
+                  ${isConsult ? `
+                    <button class="btn btn-sm btn-primary" onclick="app.startScheduledActivity('${s.id}')" style="background: #16a34a; border-color: #15803d; font-size: 0.78rem;">
+                      + Log Consult
+                    </button>
+                  ` : (isLab ? `
+                    <button class="btn btn-sm btn-primary" onclick="app.startScheduledActivity('${s.id}')" style="background: #0284c7; border-color: #0369a1; font-size: 0.78rem;">
+                      + Log Lab
+                    </button>
+                  ` : `
+                    <button class="btn btn-sm btn-primary" onclick="app.startScheduledActivity('${s.id}')" style="background: #eab308; border-color: #ca8a04; color: #713f12; font-size: 0.78rem;">
+                      + Log Chemo
+                    </button>
+                  `)}
+
+                  <button class="btn btn-sm btn-secondary" onclick="app.openEditScheduleModal('${s.id}')" style="font-size: 0.78rem;">
+                    Edit
+                  </button>
+                </div>
+
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+  }
+
+  applyScheduleDateFilter() {
+    const fromInput = document.getElementById('schedule-date-from');
+    const toInput = document.getElementById('schedule-date-to');
+    let fromDate = fromInput ? fromInput.value.trim() : '';
+    let toDate = toInput ? toInput.value.trim() : '';
+
+    if (fromDate && toDate && fromDate > toDate) {
+      const temp = fromDate;
+      fromDate = toDate;
+      toDate = temp;
+      if (fromInput) fromInput.value = fromDate;
+      if (toInput) toInput.value = toDate;
+    }
+
+    this.scheduleDateFrom = fromDate;
+    this.scheduleDateTo = toDate;
+    this.renderSchedule();
+
+    if (fromDate || toDate) {
+      this.showToast(`Displaying schedule: ${fromDate || 'Start'} to ${toDate || 'End'}`, 'info');
+    } else {
+      this.showToast('Displaying all scheduled patients', 'info');
+    }
+  }
+
+  clearScheduleDateFilter() {
+    this.scheduleDateFrom = '';
+    this.scheduleDateTo = '';
+    const fromInput = document.getElementById('schedule-date-from');
+    if (fromInput) fromInput.value = '';
+    const toInput = document.getElementById('schedule-date-to');
+    if (toInput) toInput.value = '';
+    this.renderSchedule();
+    this.showToast('Cleared date range filter. Displaying all scheduled patients.', 'info');
+  }
+
+  resetScheduleFilters() {
+    this.scheduleDateFrom = '';
+    this.scheduleDateTo = '';
+    this.scheduleTypeFilter = 'all';
+    this.scheduleStatusFilter = 'all';
+    this.scheduleSearchQuery = '';
+
+    const fromInput = document.getElementById('schedule-date-from');
+    if (fromInput) fromInput.value = '';
+    const toInput = document.getElementById('schedule-date-to');
+    if (toInput) toInput.value = '';
+    const searchInput = document.getElementById('schedule-search-input');
+    if (searchInput) searchInput.value = '';
+    const typeSelect = document.getElementById('schedule-type-filter');
+    if (typeSelect) typeSelect.value = 'all';
+    const statusSelect = document.getElementById('schedule-status-filter');
+    if (statusSelect) statusSelect.value = 'all';
+
+    this.renderSchedule();
+  }
+
+  openNewScheduleModal(defaultType = 'consultation', preselectedPatientId = null) {
+    const modal = document.getElementById('modal-schedule-appointment');
+    const form = document.getElementById('form-schedule-appointment');
+    if (!modal || !form) return;
+
+    form.reset();
+    this.editingScheduleId = null;
+    document.getElementById('sch-id').value = '';
+
+    const titleEl = document.getElementById('modal-schedule-title-text');
+    if (titleEl) titleEl.textContent = 'Schedule Clinical Appointment';
+    const btnSave = document.getElementById('btn-save-schedule');
+    if (btnSave) btnSave.textContent = 'Save Appointment';
+
+    // Set default date to today
+    const dateInput = document.getElementById('sch-date');
+    if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+
+    const timeInput = document.getElementById('sch-time');
+    if (timeInput) timeInput.value = '09:00';
+
+    // Select type radio
+    const radio = document.querySelector(`input[name="sch-type"][value="${defaultType}"]`);
+    if (radio) {
+      radio.checked = true;
+    }
+    this.onScheduleTypeChanged();
+
+    // Patient selection
+    const preview = document.getElementById('sch-selected-patient-preview');
+    const hidden = document.getElementById('sch-patient-select');
+    const searchInput = document.getElementById('sch-patient-search');
+
+    if (preselectedPatientId) {
+      this.selectSchedulePatient(preselectedPatientId);
+    } else {
+      if (preview) preview.style.display = 'none';
+      if (hidden) hidden.value = '';
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.style.display = 'block';
+      }
+    }
+
+    this.openModal(modal);
+    setTimeout(() => searchInput?.focus(), 150);
+  }
+
+  onScheduleTypeChanged() {
+    const radio = document.querySelector('input[name="sch-type"]:checked');
+    const val = radio ? radio.value : 'consultation';
+    const txFields = document.getElementById('sch-treatment-fields');
+    const stationSelect = document.getElementById('sch-station');
+
+    if (val === 'treatment') {
+      if (txFields) txFields.style.display = 'block';
+      if (stationSelect && (stationSelect.value.startsWith('Consultation') || stationSelect.value.startsWith('Laboratory'))) {
+        stationSelect.value = 'Infusion Chair #1';
+      }
+    } else if (val === 'laboratory') {
+      if (txFields) txFields.style.display = 'none';
+      if (stationSelect && !stationSelect.value.startsWith('Laboratory')) {
+        stationSelect.value = 'Laboratory Phlebotomy Station 1';
+      }
+    } else {
+      if (txFields) txFields.style.display = 'none';
+      if (stationSelect && (stationSelect.value.startsWith('Infusion') || stationSelect.value.startsWith('Laboratory'))) {
+        stationSelect.value = 'Consultation Exam Room 1';
+      }
+    }
+  }
+
+  openEditScheduleModal(id) {
+    const sch = (this.schedules || []).find(s => s.id === id);
+    if (!sch) return;
+
+    const modal = document.getElementById('modal-schedule-appointment');
+    const form = document.getElementById('form-schedule-appointment');
+    form.reset();
+
+    this.editingScheduleId = id;
+    document.getElementById('sch-id').value = sch.id;
+
+    const titleEl = document.getElementById('modal-schedule-title-text');
+    if (titleEl) titleEl.textContent = 'Edit Scheduled Appointment';
+    const btnSave = document.getElementById('btn-save-schedule');
+    if (btnSave) btnSave.textContent = 'Update Appointment';
+
+    // Type radio
+    const radio = document.querySelector(`input[name="sch-type"][value="${sch.type}"]`);
+    if (radio) radio.checked = true;
+    this.onScheduleTypeChanged();
+
+    // Patient
+    this.selectSchedulePatient(sch.patientId);
+
+    // Fields
+    const setVal = (fid, v) => {
+      const el = document.getElementById(fid);
+      if (el && v !== undefined && v !== null) el.value = v;
+    };
+
+    setVal('sch-date', sch.scheduledDate);
+    setVal('sch-time', sch.scheduledTime);
+    setVal('sch-station', sch.station);
+    setVal('sch-status', sch.status || 'Scheduled');
+    setVal('sch-oncologist', sch.oncologist);
+    setVal('sch-nurse', sch.nurse);
+    setVal('sch-regimen', sch.regimenName);
+    setVal('sch-cycle-num', sch.cycleNumber);
+    setVal('sch-cycle-total', sch.cycleTotal);
+    setVal('sch-reason', sch.reason);
+    setVal('sch-notes', sch.notes);
+
+    this.openModal(modal);
+  }
+
+  saveSchedule(formData) {
+    const id = formData.get('sch-id') || document.getElementById('sch-id')?.value || ('sch-' + Date.now());
+    const patientId = formData.get('sch-patient-select') || document.getElementById('sch-patient-select')?.value;
+    if (!patientId) {
+      this.showToast('Please search and select a patient first.', 'warning');
+      return;
+    }
+
+    const patient = this.getPatientById(patientId);
+    const patName = patient ? patient.fullName : 'Patient';
+    const mrn = patient ? patient.mrn : '';
+
+    const typeRadio = document.querySelector('input[name="sch-type"]:checked');
+    const type = typeRadio ? typeRadio.value : 'consultation';
+
+    const scheduledDate = formData.get('sch-date') || document.getElementById('sch-date')?.value;
+    const scheduledTime = formData.get('sch-time') || document.getElementById('sch-time')?.value || '09:00';
+    const station = formData.get('sch-station') || document.getElementById('sch-station')?.value || 'Clinical Unit';
+    const status = formData.get('sch-status') || document.getElementById('sch-status')?.value || 'Scheduled';
+
+    const oncologist = formData.get('sch-oncologist') || document.getElementById('sch-oncologist')?.value;
+    const nurse = formData.get('sch-nurse') || document.getElementById('sch-nurse')?.value;
+
+    const regimenName = formData.get('sch-regimen') || document.getElementById('sch-regimen')?.value || '';
+    const cycleNumber = (formData.get('sch-cycle-num') || document.getElementById('sch-cycle-num')?.value || '').toString().trim();
+    const cycleTotal = (formData.get('sch-cycle-total') || document.getElementById('sch-cycle-total')?.value || '').toString().trim();
+
+    const reason = formData.get('sch-reason') || document.getElementById('sch-reason')?.value || (type === 'treatment' ? 'Chemotherapy Treatment Session' : (type === 'laboratory' ? 'Laboratory & Diagnostic Extraction' : 'Pre-Chemo Consultation & Clearance'));
+    const notes = formData.get('sch-notes') || document.getElementById('sch-notes')?.value || '';
+
+    const schData = {
+      id,
+      patientId,
+      patientName: patName,
+      mrn,
+      type,
+      scheduledDate,
+      scheduledTime,
+      durationMinutes: type === 'treatment' ? 180 : (type === 'laboratory' ? 30 : 45),
+      station,
+      status,
+      oncologist,
+      nurse,
+      regimenName,
+      cycleNumber,
+      cycleTotal,
+      reason,
+      notes,
+      updatedAt: new Date().toISOString()
+    };
+
+    const existingIdx = (this.schedules || []).findIndex(s => s.id === id);
+    if (existingIdx !== -1) {
+      this.schedules[existingIdx] = { ...this.schedules[existingIdx], ...schData };
+      this.showToast('Appointment rescheduled and updated.', 'success');
+    } else {
+      schData.createdAt = new Date().toISOString();
+      this.schedules.push(schData);
+      this.showToast(`Appointment scheduled for ${patName}!`, 'success');
+    }
+
+    this.saveData();
+    this.closeModal(document.getElementById('modal-schedule-appointment'));
+    this.render();
+  }
+
+  checkInSchedule(id) {
+    const sch = (this.schedules || []).find(s => s.id === id);
+    if (!sch) return;
+    sch.status = 'Checked-In';
+    sch.checkedInAt = new Date().toISOString();
+    this.saveData();
+    this.showToast(`Patient ${sch.patientName || ''} marked as Checked In.`, 'success');
+    this.render();
+  }
+
+  cancelSchedule(id) {
+    const sch = (this.schedules || []).find(s => s.id === id);
+    if (!sch) return;
+    if (confirm(`Cancel scheduled ${sch.type} appointment for ${sch.patientName} on ${sch.scheduledDate}?`)) {
+      sch.status = 'Cancelled';
+      this.saveData();
+      this.showToast('Appointment cancelled.', 'info');
+      this.render();
+    }
+  }
+
+  startScheduledActivity(id) {
+    const sch = (this.schedules || []).find(s => s.id === id);
+    if (!sch) return;
+
+    if (sch.type === 'consultation') {
+      this.openNewConsultModal(sch.patientId);
+      if (sch.oncologist) {
+        const oncField = document.getElementById('consult-oncologist');
+        if (oncField) oncField.value = sch.oncologist;
+      }
+      if (sch.reason) {
+        const reasonField = document.getElementById('consult-reason');
+        if (reasonField) reasonField.value = sch.reason;
+      }
+    } else if (sch.type === 'laboratory') {
+      this.openNewLabModal(sch.patientId);
+      if (sch.oncologist) {
+        const oncField = document.getElementById('lab-form-doctor');
+        if (oncField) oncField.value = sch.oncologist;
+      }
+      if (sch.reason) {
+        const testField = document.getElementById('lab-form-test-name');
+        if (testField) testField.value = sch.reason;
+      }
+    } else {
+      this.openNewTreatmentModal(sch.patientId);
+      if (sch.regimenName) {
+        const select = document.getElementById('tx-regimen-select');
+        if (select) {
+          const match = Array.from(select.options).find(o => o.text.toLowerCase().includes(sch.regimenName.toLowerCase()));
+          if (match) {
+            select.value = match.value;
+            this.onRegimenSelectChanged();
+          }
+        }
+      }
+      if (sch.cycleNumber) {
+        const cycleField = document.getElementById('tx-cycle-num');
+        if (cycleField) cycleField.value = sch.cycleNumber;
+      }
+      if (sch.cycleTotal) {
+        const totalField = document.getElementById('tx-cycle-total');
+        if (totalField) totalField.value = sch.cycleTotal;
+      }
+      if (sch.oncologist) {
+        const oncField = document.getElementById('tx-oncologist');
+        if (oncField) oncField.value = sch.oncologist;
+      }
+      if (sch.nurse) {
+        const nurseField = document.getElementById('tx-nurse');
+        if (nurseField) nurseField.value = sch.nurse;
+      }
+    }
+  }
+
+  selectSchedulePatient(patientId) {
+    const patient = this.getPatientById(patientId);
+    if (!patient) return;
+
+    const preview = document.getElementById('sch-selected-patient-preview');
+    const hidden = document.getElementById('sch-patient-select');
+    const searchInput = document.getElementById('sch-patient-search');
+    const resultsEl = document.getElementById('sch-search-results');
+
+    if (hidden) hidden.value = patient.id;
+    if (preview) preview.style.display = 'block';
+    if (searchInput) searchInput.style.display = 'none';
+    if (resultsEl) resultsEl.style.display = 'none';
+
+    const pName = document.getElementById('sch-preview-name');
+    const pMrn = document.getElementById('sch-preview-mrn');
+    const pDiag = document.getElementById('sch-preview-diag');
+
+    if (pName) pName.textContent = patient.fullName;
+    if (pMrn) pMrn.textContent = patient.mrn;
+    if (pDiag) pDiag.textContent = `${patient.primaryDiagnosis || 'Oncology'} (Stage: ${patient.stage || 'N/A'})`;
+
+    // Auto-fill oncologist and nurse if not already set
+    const oncField = document.getElementById('sch-oncologist');
+    if (oncField && !oncField.value && patient.primaryOncologist) {
+      oncField.value = patient.primaryOncologist;
+    }
+    const nurseField = document.getElementById('sch-nurse');
+    if (nurseField && !nurseField.value && patient.primaryNurse) {
+      nurseField.value = patient.primaryNurse;
+    }
+    const regField = document.getElementById('sch-regimen');
+    if (regField && !regField.value && patient.activeRegimen) {
+      regField.value = patient.activeRegimen;
+    }
+  }
+
+  populateSchedulePatientDropdown(query = '') {
+    const resultsEl = document.getElementById('sch-search-results');
+    if (!resultsEl) return;
+
+    const q = (query || '').toLowerCase().trim();
+    if (!q) {
+      resultsEl.innerHTML = '';
+      resultsEl.style.display = 'none';
+      return;
+    }
+
+    const matches = this.patients.filter(p =>
+      (p.fullName && p.fullName.toLowerCase().includes(q)) ||
+      (p.mrn && p.mrn.toLowerCase().includes(q))
+    ).slice(0, 8);
+
+    if (matches.length === 0) {
+      resultsEl.innerHTML = '<div style="padding: 0.5rem 0.75rem; color: #94a3b8; font-size: 0.82rem;">No matching patients</div>';
+      resultsEl.style.display = 'block';
+      return;
+    }
+
+    resultsEl.innerHTML = matches.map(p => `
+      <div class="search-dropdown-item" onclick="app.selectSchedulePatient('${p.id}')">
+        <strong>${this.escapeHtml(p.fullName)}</strong>
+        <span class="patient-mrn" style="margin-left: 0.35rem; font-size: 0.75rem;">${this.escapeHtml(p.mrn)}</span>
+        <div style="font-size: 0.74rem; color: #64748b; margin-top: 2px;">${this.escapeHtml(p.primaryDiagnosis || '')}</div>
+      </div>
+    `).join('');
+    resultsEl.style.display = 'block';
+  }
+
+  /* ------------------------------------------------------------------
+   * View: Oncology Laboratory & Diagnostics Module
+   * ------------------------------------------------------------------ */
+  ensureInitialSampleLaboratory() {
+    if (this.laboratory && this.laboratory.length > 0) return;
+    if (!this.patients || this.patients.length === 0) return;
+
+    const p0 = this.patients[0];
+    const p1 = this.patients[1] || p0;
+    const p2 = this.patients[2] || p0;
+    const p3 = this.patients[3] || p0;
+    const p4 = this.patients[4] || p0;
+    const p5 = this.patients[5] || p0;
+
+    const todayStr = this.getTodayDateStr();
+    const d = new Date();
+    const getDateDaysAgo = (days) => {
+      const dt = new Date(d);
+      dt.setDate(dt.getDate() - days);
+      return dt.toISOString().slice(0, 10);
+    };
+
+    this.laboratory = [
+      {
+        id: 'lab-101',
+        patientId: p0.id,
+        testDate: todayStr,
+        testTime: '07:45',
+        category: 'Complete Blood Count (CBC)',
+        testName: 'Complete Blood Count (CBC) w/ ANC & Platelet Differential',
+        orderingPhysician: 'Dr. Evelyn Reed, MD',
+        performingFacility: 'Imus Cancer Center Clinical Diagnostic Laboratory',
+        anc: 2.45,
+        platelets: 220,
+        wbc: 6.8,
+        hemoglobin: 12.1,
+        creatinine: 0.82,
+        alt: 22,
+        ast: 20,
+        tumorMarker: '',
+        clearanceStatus: 'Cleared for Chemotherapy',
+        remarks: 'Safe hematologic parameters. ANC ≥ 1.5, Platelets ≥ 100. Patient fully cleared for scheduled chemotherapy infusion.',
+        documents: [
+          {
+            id: 'doc_lab_101',
+            name: `${p0.mrn}_CBC_ANC_Differential_${todayStr}.pdf`,
+            size: 154200,
+            sizeFormatted: '150 KB',
+            type: 'application/pdf',
+            category: 'CBC Hematology Report',
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: 'Clinical Diagnostic Lab',
+            data: typeof generateSamplePdfDataUrl === 'function' ? generateSamplePdfDataUrl(
+              'IMUS CLINICAL LABORATORY - CBC WITH ANC & DIFFERENTIAL',
+              `Patient: ${p0.fullName} | MRN: ${p0.mrn} | Collection: ${todayStr} 07:45`,
+              [
+                'ABSOLUTE NEUTROPHIL COUNT (ANC): 2.45 x10^9/L (Ref: 1.50 - 8.00) [NORMAL / SAFE]',
+                'PLATELET COUNT: 220 x10^9/L (Ref: 150 - 450) [NORMAL / SAFE]',
+                'WHITE BLOOD CELLS (WBC): 6.8 x10^9/L (Ref: 4.0 - 11.0)',
+                'HEMOGLOBIN: 12.1 g/dL (Ref: 12.0 - 16.0)',
+                'HEMATOCRIT: 37.2 % (Ref: 36.0 - 46.0)',
+                'CHEMOTHERAPY CLEARANCE: APPROVED - ADEQUATE MARROW RESERVE'
+              ]
+            ) : null
+          }
+        ],
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'lab-102',
+        patientId: p1.id,
+        testDate: getDateDaysAgo(1),
+        testTime: '08:30',
+        category: 'Comprehensive Chemistry Panel',
+        testName: 'Comprehensive Metabolic Panel (CMP) & Hepatorenal Profile',
+        orderingPhysician: 'Dr. Julian Santos, MD',
+        performingFacility: 'Imus Cancer Center Clinical Diagnostic Laboratory',
+        anc: 1.85,
+        platelets: 180,
+        wbc: 5.2,
+        hemoglobin: 11.4,
+        creatinine: 0.95,
+        alt: 34,
+        ast: 28,
+        tumorMarker: '',
+        clearanceStatus: 'Cleared for Chemotherapy',
+        remarks: 'Renal function intact (creatinine 0.95 mg/dL, estimated GFR > 75 mL/min). Liver transaminases within acceptable oncologic limits.',
+        documents: [
+          {
+            id: 'doc_lab_102',
+            name: `${p1.mrn}_Comprehensive_Metabolic_Panel.pdf`,
+            size: 168000,
+            sizeFormatted: '164 KB',
+            type: 'application/pdf',
+            category: 'Chemistry / Organ Panel',
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: 'Clinical Diagnostic Lab',
+            data: typeof generateSamplePdfDataUrl === 'function' ? generateSamplePdfDataUrl(
+              'IMUS CLINICAL LABORATORY - COMPREHENSIVE CHEMISTRY PANEL',
+              `Patient: ${p1.fullName} | MRN: ${p1.mrn} | Date: ${getDateDaysAgo(1)}`,
+              [
+                'SERUM CREATININE: 0.95 mg/dL (Ref: 0.60 - 1.20)',
+                'BLOOD UREA NITROGEN (BUN): 16 mg/dL (Ref: 7 - 20)',
+                'SGPT / ALT: 34 U/L (Ref: 7 - 56)',
+                'SGOT / AST: 28 U/L (Ref: 10 - 40)',
+                'TOTAL BILIRUBIN: 0.6 mg/dL (Ref: 0.2 - 1.2)',
+                'CLEARANCE INTERPRETATION: Renal & Hepatic reserves clear for platinum protocol'
+              ]
+            ) : null
+          }
+        ],
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'lab-103',
+        patientId: p2.id,
+        testDate: todayStr,
+        testTime: '09:15',
+        category: 'Complete Blood Count (CBC)',
+        testName: 'Urgent Stat CBC - Post-Chemotherapy Nadir Monitoring',
+        orderingPhysician: 'Dr. Evelyn Reed, MD',
+        performingFacility: 'Imus Cancer Center Emergency & Stat Laboratory',
+        anc: 0.88,
+        platelets: 78,
+        wbc: 1.9,
+        hemoglobin: 9.2,
+        creatinine: 1.10,
+        alt: 48,
+        ast: 42,
+        tumorMarker: '',
+        clearanceStatus: 'Critical - Hold Chemotherapy',
+        remarks: 'CRITICAL CYTOPENIA ALERT: Grade 3 Neutropenia (ANC 0.88 x10^9/L) and Grade 1 Thrombocytopenia (Plt 78 x10^9/L). Chemotherapy held. Filgrastim (G-CSF) prescribed.',
+        documents: [
+          {
+            id: 'doc_lab_103',
+            name: `${p2.mrn}_STAT_Nadir_CBC_Alert.pdf`,
+            size: 142000,
+            sizeFormatted: '138 KB',
+            type: 'application/pdf',
+            category: 'CBC Hematology Report',
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: 'Emergency Stat Lab',
+            data: typeof generateSamplePdfDataUrl === 'function' ? generateSamplePdfDataUrl(
+              'CRITICAL ALERT - NADIR HEMATOLOGIC TOXICITY',
+              `Patient: ${p2.fullName} | MRN: ${p2.mrn} | Date: ${todayStr}`,
+              [
+                '*** CRITICAL RESULT ***',
+                'ABSOLUTE NEUTROPHIL COUNT (ANC): 0.88 x10^9/L (Ref: >= 1.50) [CRITICAL LOW]',
+                'PLATELET COUNT: 78 x10^9/L (Ref: >= 100) [LOW / THROMBOCYTOPENIA]',
+                'TOTAL WBC: 1.9 x10^9/L (Ref: 4.0 - 11.0) [LEUKOPENIA]',
+                'ACTION TAKEN: Physician contacted immediately. Day 1 Chemotherapy postponed.',
+                'RECOMMENDATION: G-CSF 300mcg subcutaneous daily x 3 days. Retest in 72h.'
+              ]
+            ) : null
+          }
+        ],
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'lab-104',
+        patientId: p3.id,
+        testDate: getDateDaysAgo(2),
+        testTime: '10:00',
+        category: 'Tumor Markers',
+        testName: 'Oncology Serum Biomarker Assay (CEA & CA 19-9)',
+        orderingPhysician: 'Dr. Marcus Vance, MD',
+        performingFacility: 'Imus Specialized Immunoassay Diagnostics',
+        anc: 3.20,
+        platelets: 245,
+        wbc: 7.1,
+        hemoglobin: 12.8,
+        creatinine: 0.88,
+        alt: 25,
+        ast: 22,
+        tumorMarker: 'CEA: 2.1 ng/mL | CA 19-9: 14 U/mL',
+        clearanceStatus: 'Cleared for Chemotherapy',
+        remarks: 'Serial tumor markers show favorable response. Both CEA and CA 19-9 remain well below baseline and normal reference upper limits.',
+        documents: [],
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'lab-105',
+        patientId: p4.id,
+        testDate: getDateDaysAgo(3),
+        testTime: '11:20',
+        category: 'Complete Blood Count (CBC)',
+        testName: 'CBC & Renal Clearance Prior to Cycle 3',
+        orderingPhysician: 'Dr. Evelyn Reed, MD',
+        performingFacility: 'Imus Cancer Center Clinical Diagnostic Laboratory',
+        anc: 1.42,
+        platelets: 108,
+        wbc: 3.9,
+        hemoglobin: 10.4,
+        creatinine: 1.48,
+        alt: 38,
+        ast: 35,
+        tumorMarker: '',
+        clearanceStatus: 'Dose Adjustment Advised',
+        remarks: 'Borderline ANC (1.42 x10^9/L) and elevated serum creatinine (1.48 mg/dL). 20% dose reduction recommended for nephrotoxic agents or 48h hydration.',
+        documents: [],
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'lab-106',
+        patientId: p5.id,
+        testDate: getDateDaysAgo(5),
+        testTime: '14:00',
+        category: 'Pathology & Biopsy',
+        testName: 'Surgical Histopathology & Immunohistochemistry Panel',
+        orderingPhysician: 'Dr. Lea De Castro, MD',
+        performingFacility: 'Cavite Regional Histopathology Specialty Center',
+        anc: null,
+        platelets: null,
+        wbc: null,
+        hemoglobin: null,
+        creatinine: null,
+        alt: null,
+        ast: null,
+        tumorMarker: 'ER: 90% (+), PR: 85% (+), HER2: Negative (Score 1+), Ki-67: 18%',
+        clearanceStatus: 'Normal - Within Limits',
+        remarks: 'Confirmation of Luminal A invasive carcinoma. Favorable prognostic subtype. Histological Grade 2.',
+        documents: [],
+        updatedAt: new Date().toISOString()
+      }
+    ];
+
+    this.saveData();
+  }
+
+  renderLaboratory() {
+    const container = document.getElementById('laboratory-list-container');
+    if (!container) return;
+
+    const allLabs = this.laboratory || [];
+    const totalCount = allLabs.length;
+    const alertCount = allLabs.filter(l => 
+      l.clearanceStatus === 'Critical - Hold Chemotherapy' ||
+      (l.anc !== null && l.anc !== '' && Number(l.anc) < 1.5) ||
+      (l.platelets !== null && l.platelets !== '' && Number(l.platelets) < 100)
+    ).length;
+    const clearedCount = allLabs.filter(l => 
+      l.clearanceStatus === 'Cleared for Chemotherapy'
+    ).length;
+
+    // Recent in last 7 days
+    const now = new Date();
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(now.getDate() - 7);
+    const recentCount = allLabs.filter(l => {
+      if (!l.testDate) return false;
+      const d = new Date(l.testDate);
+      return d >= sevenDaysAgo && d <= now;
+    }).length;
+
+    const elTotal = document.getElementById('stat-lab-total');
+    const elAlerts = document.getElementById('stat-lab-alerts');
+    const elCleared = document.getElementById('stat-lab-cleared');
+    const elRecent = document.getElementById('stat-lab-recent');
+
+    if (elTotal) elTotal.textContent = totalCount;
+    if (elAlerts) elAlerts.textContent = alertCount;
+    if (elCleared) elCleared.textContent = clearedCount;
+    if (elRecent) elRecent.textContent = recentCount;
+
+    // Filter labs
+    const q = (this.labSearchQuery || '').toLowerCase().trim();
+    const cat = this.labCategoryFilter || 'all';
+    const st = this.labStatusFilter || 'all';
+    const patId = this.labPatientFilter || '';
+
+    const filtered = allLabs.filter(lab => {
+      const patient = this.getPatientById(lab.patientId);
+      const patName = patient ? patient.fullName.toLowerCase() : '';
+      const patMrn = patient ? patient.mrn.toLowerCase() : '';
+      const cancer = patient ? (patient.cancerType || '').toLowerCase() : '';
+
+      // Search match
+      if (q) {
+        const matchesQuery = 
+          patName.includes(q) ||
+          patMrn.includes(q) ||
+          cancer.includes(q) ||
+          (lab.testName && lab.testName.toLowerCase().includes(q)) ||
+          (lab.category && lab.category.toLowerCase().includes(q)) ||
+          (lab.orderingPhysician && lab.orderingPhysician.toLowerCase().includes(q)) ||
+          (lab.performingFacility && lab.performingFacility.toLowerCase().includes(q)) ||
+          (lab.tumorMarker && lab.tumorMarker.toLowerCase().includes(q)) ||
+          (lab.remarks && lab.remarks.toLowerCase().includes(q));
+        if (!matchesQuery) return false;
+      }
+
+      // Category match
+      if (cat !== 'all' && lab.category !== cat) {
+        return false;
+      }
+
+      // Patient match
+      if (patId && lab.patientId !== patId) {
+        return false;
+      }
+
+      // Status match
+      if (st === 'cleared') {
+        if (lab.clearanceStatus !== 'Cleared for Chemotherapy') return false;
+      } else if (st === 'critical') {
+        const isCrit = lab.clearanceStatus === 'Critical - Hold Chemotherapy' ||
+          (lab.anc !== null && lab.anc !== '' && Number(lab.anc) < 1.5) ||
+          (lab.platelets !== null && lab.platelets !== '' && Number(lab.platelets) < 100);
+        if (!isCrit) return false;
+      } else if (st === 'normal') {
+        if (lab.clearanceStatus !== 'Normal - Within Limits' && lab.clearanceStatus !== 'Dose Adjustment Advised') return false;
+      }
+
+      return true;
+    });
+
+    // Sort descending by testDate then testTime
+    filtered.sort((a, b) => {
+      const dtA = `${a.testDate || ''} ${a.testTime || ''}`;
+      const dtB = `${b.testDate || ''} ${b.testTime || ''}`;
+      return dtB.localeCompare(dtA);
+    });
+
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state" style="padding: 3rem 1.5rem; text-align: center; background: #ffffff; border: 1px dashed var(--border); border-radius: 10px;">
+          <div style="font-size: 2.5rem; margin-bottom: 0.75rem; color: #94a3b8;">🧪</div>
+          <h4 style="color: var(--text-dark); margin-bottom: 0.35rem; font-size: 1.1rem;">No Laboratory Results Found</h4>
+          <p style="color: var(--text-muted); font-size: 0.85rem; max-width: 440px; margin: 0 auto 1.25rem;">
+            No laboratory records match your selected search or filter criteria. You can reset filters or log a new diagnostic panel.
+          </p>
+          <div style="display: flex; gap: 0.5rem; justify-content: center;">
+            <button class="btn btn-secondary btn-sm" onclick="app.resetLabFilters()">Reset Filters</button>
+            <button class="btn btn-primary btn-sm" onclick="app.openNewLabModal()" style="background: #0284c7; border-color: #0369a1;">+ Log Lab Result</button>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = filtered.map(lab => {
+      const patient = this.getPatientById(lab.patientId);
+      const isCritical = lab.clearanceStatus === 'Critical - Hold Chemotherapy' ||
+        (lab.anc !== null && lab.anc !== '' && Number(lab.anc) < 1.5) ||
+        (lab.platelets !== null && lab.platelets !== '' && Number(lab.platelets) < 100);
+
+      const ancVal = lab.anc !== null && lab.anc !== '' ? Number(lab.anc) : null;
+      const pltVal = lab.platelets !== null && lab.platelets !== '' ? Number(lab.platelets) : null;
+      const creatVal = lab.creatinine !== null && lab.creatinine !== '' ? Number(lab.creatinine) : null;
+
+      return `
+        <div class="lab-card ${isCritical ? 'critical-lab' : ''}">
+          <!-- Lab Card Header -->
+          <div class="lab-card-header">
+            <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 250px;">
+              <div class="patient-avatar-thumb" style="width: 42px; height: 42px; border: 2px solid #0284c7; font-size: 0.95rem; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #e0f2fe; flex-shrink: 0;">
+                ${this.renderPatientAvatar(patient)}
+              </div>
+              <div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                  <span class="patient-link" onclick="app.navigateTo('patient-chart', '${lab.patientId}')" style="font-size: 1rem; font-weight: 700; color: #0284c7;">
+                    ${patient ? this.escapeHtml(patient.fullName) : 'Unknown Patient'}
+                  </span>
+                  <span class="badge badge-outline" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;">${patient ? patient.mrn : 'N/A'}</span>
+                  ${patient && patient.cancerType ? `<span class="badge badge-info" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;">${this.escapeHtml(patient.cancerType)}</span>` : ''}
+                </div>
+                <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                  <span>Specimen: <strong>${lab.testDate || 'N/A'}</strong> ${lab.testTime ? `at ${lab.testTime}` : ''}</span>
+                  <span>•</span>
+                  <span>${this.escapeHtml(lab.orderingPhysician || 'Oncologist')}</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              ${this.renderLabClearanceBadge(lab)}
+            </div>
+          </div>
+
+          <!-- Lab Card Body -->
+          <div class="lab-card-body">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.85rem;">
+              <div>
+                <h4 style="margin: 0; font-size: 1.02rem; font-weight: 700; color: var(--text-dark);">
+                  ${this.escapeHtml(lab.testName || 'Diagnostic Panel')}
+                </h4>
+                <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
+                  <span class="badge badge-secondary" style="font-size: 0.72rem; font-weight: 600;">${this.escapeHtml(lab.category || 'General')}</span>
+                  <span style="margin-left: 0.5rem;">${this.escapeHtml(lab.performingFacility || 'Imus Clinical Lab')}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Clinical Values Badges Row -->
+            <div class="lab-values-row">
+              ${ancVal !== null ? `
+                <div class="lab-val-badge ${ancVal >= 1.5 ? 'safe' : 'alert'}">
+                  <span>ANC:</span>
+                  <strong>${ancVal.toFixed(2)}</strong>
+                  <small>x10⁹/L ${ancVal >= 1.5 ? '✓ Safe' : '⚠️ LOW'}</small>
+                </div>
+              ` : ''}
+              ${pltVal !== null ? `
+                <div class="lab-val-badge ${pltVal >= 100 ? 'safe' : 'alert'}">
+                  <span>Platelets:</span>
+                  <strong>${pltVal}</strong>
+                  <small>x10⁹/L ${pltVal >= 100 ? '✓ Safe' : '⚠️ LOW'}</small>
+                </div>
+              ` : ''}
+              ${lab.wbc !== null && lab.wbc !== '' ? `
+                <div class="lab-val-badge neutral">
+                  <span>WBC:</span>
+                  <strong>${lab.wbc}</strong>
+                  <small>x10⁹/L</small>
+                </div>
+              ` : ''}
+              ${lab.hemoglobin !== null && lab.hemoglobin !== '' ? `
+                <div class="lab-val-badge neutral">
+                  <span>Hemoglobin:</span>
+                  <strong>${lab.hemoglobin}</strong>
+                  <small>g/dL</small>
+                </div>
+              ` : ''}
+              ${creatVal !== null ? `
+                <div class="lab-val-badge ${creatVal <= 1.2 ? 'safe' : 'alert'}">
+                  <span>Creatinine:</span>
+                  <strong>${creatVal.toFixed(2)}</strong>
+                  <small>mg/dL ${creatVal <= 1.2 ? '✓' : '⚠️'}</small>
+                </div>
+              ` : ''}
+              ${lab.alt !== null && lab.alt !== '' ? `
+                <div class="lab-val-badge neutral">
+                  <span>SGPT/ALT:</span>
+                  <strong>${lab.alt}</strong>
+                  <small>U/L</small>
+                </div>
+              ` : ''}
+              ${lab.ast !== null && lab.ast !== '' ? `
+                <div class="lab-val-badge neutral">
+                  <span>SGOT/AST:</span>
+                  <strong>${lab.ast}</strong>
+                  <small>U/L</small>
+                </div>
+              ` : ''}
+              ${lab.tumorMarker ? `
+                <div class="lab-val-badge neutral" style="grid-column: span 2;">
+                  <span>Tumor Marker:</span>
+                  <strong>${this.escapeHtml(lab.tumorMarker)}</strong>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Remarks / Clinical Notes -->
+            ${lab.remarks ? `
+              <div style="margin-top: 0.75rem; background: #f8fafc; border-left: 3.5px solid ${isCritical ? '#dc2626' : '#0284c7'}; padding: 0.55rem 0.75rem; border-radius: 4px; font-size: 0.82rem; color: #334155; line-height: 1.45;">
+                <strong style="color: ${isCritical ? '#dc2626' : '#0284c7'}; font-size: 0.75rem; text-transform: uppercase;">Remarks:</strong>
+                <span style="margin-left: 0.35rem;">${this.escapeHtml(lab.remarks)}</span>
+              </div>
+            ` : ''}
+
+            <!-- Attached Documents Strip -->
+            ${lab.documents && lab.documents.length > 0 ? `
+              <div style="margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px dashed var(--border); display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Attachments (${lab.documents.length}):</span>
+                ${lab.documents.map(d => `
+                  <button type="button" class="btn btn-xs btn-outline" onclick="app.viewDocument('${d.id}', 'laboratory', '${lab.id}')" title="Preview ${this.escapeHtml(d.name)}" style="font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.25rem;">
+                    <span>📄</span>
+                    <span style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${this.escapeHtml(d.name)}</span>
+                  </button>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Lab Card Footer Actions -->
+          <div class="lab-card-footer">
+            <div style="font-size: 0.75rem; color: var(--text-muted);">
+              Ref ID: <code style="font-size: 0.72rem;">${lab.id}</code>
+            </div>
+            <div style="display: flex; gap: 0.4rem; align-items: center;">
+              <button type="button" class="btn btn-xs btn-outline" onclick="app.viewLaboratory('${lab.id}')" title="View Full Report">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                <span>View Details</span>
+              </button>
+              <button type="button" class="btn btn-xs btn-secondary" onclick="app.openEditLabModal('${lab.id}')" title="Edit Lab Result">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                <span>Edit</span>
+              </button>
+              <button type="button" class="btn btn-xs btn-ghost" style="color: var(--danger);" onclick="app.deleteLaboratory('${lab.id}')" title="Delete Lab Record">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  renderLabClearanceBadge(lab) {
+    const isCritical = lab.clearanceStatus === 'Critical - Hold Chemotherapy' ||
+      (lab.anc !== null && lab.anc !== '' && Number(lab.anc) < 1.5) ||
+      (lab.platelets !== null && lab.platelets !== '' && Number(lab.platelets) < 100);
+
+    if (isCritical) {
+      return `<span class="badge badge-danger" style="font-weight: 700; font-size: 0.8rem; padding: 0.35rem 0.65rem; border-radius: 6px; box-shadow: 0 1px 3px rgba(220, 38, 38, 0.2);">⚠️ Critical Cytopenia - Hold Chemo</span>`;
+    }
+    if (lab.clearanceStatus === 'Dose Adjustment Advised') {
+      return `<span class="badge badge-warning" style="font-weight: 700; font-size: 0.8rem; padding: 0.35rem 0.65rem; border-radius: 6px;">⚠️ Dose Adjustment Advised</span>`;
+    }
+    if (lab.clearanceStatus === 'Cleared for Chemotherapy') {
+      return `<span class="badge badge-success" style="font-weight: 700; font-size: 0.8rem; padding: 0.35rem 0.65rem; border-radius: 6px; box-shadow: 0 1px 3px rgba(22, 163, 74, 0.2);">✅ Cleared for Chemotherapy</span>`;
+    }
+    return `<span class="badge badge-info" style="font-weight: 600; font-size: 0.8rem; padding: 0.35rem 0.65rem; border-radius: 6px;">🧪 Normal / Within Limits</span>`;
+  }
+
+  openNewLabModal(patientId = null) {
+    const modal = document.getElementById('modal-laboratory');
+    const form = document.getElementById('form-laboratory');
+    if (!modal || !form) return;
+
+    form.reset();
+    this.editingLabId = null;
+    document.getElementById('lab-edit-id').value = '';
+
+    const titleEl = document.getElementById('modal-lab-title-text');
+    if (titleEl) titleEl.textContent = 'Log Diagnostic Laboratory Result';
+
+    const dateInput = document.getElementById('lab-form-date');
+    if (dateInput) dateInput.value = this.getTodayDateStr();
+
+    const timeInput = document.getElementById('lab-form-time');
+    if (timeInput) timeInput.value = '08:00';
+
+    if (patientId) {
+      const select = document.getElementById('lab-form-patient-select');
+      if (select) select.value = patientId;
+    }
+
+    this.modalPendingDocs.laboratory = [];
+    this.renderModalDocsList('laboratory');
+    this.openModal(modal);
+  }
+
+  openEditLabModal(labId) {
+    const lab = (this.laboratory || []).find(l => l.id === labId);
+    if (!lab) return;
+
+    const modal = document.getElementById('modal-laboratory');
+    const form = document.getElementById('form-laboratory');
+    if (!modal || !form) return;
+
+    form.reset();
+    this.editingLabId = lab.id;
+    document.getElementById('lab-edit-id').value = lab.id;
+
+    const titleEl = document.getElementById('modal-lab-title-text');
+    if (titleEl) titleEl.textContent = 'Edit Diagnostic Laboratory Result';
+
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val !== undefined && val !== null) el.value = val;
+    };
+
+    setVal('lab-form-patient-select', lab.patientId);
+    setVal('lab-form-date', lab.testDate);
+    setVal('lab-form-time', lab.testTime);
+    setVal('lab-form-category', lab.category);
+    setVal('lab-form-test-name', lab.testName);
+    setVal('lab-form-doctor', lab.orderingPhysician);
+    setVal('lab-form-facility', lab.performingFacility);
+    setVal('lab-form-anc', lab.anc);
+    setVal('lab-form-platelets', lab.platelets);
+    setVal('lab-form-wbc', lab.wbc);
+    setVal('lab-form-hemoglobin', lab.hemoglobin);
+    setVal('lab-form-creatinine', lab.creatinine);
+    setVal('lab-form-alt', lab.alt);
+    setVal('lab-form-ast', lab.ast);
+    setVal('lab-form-tumor-marker', lab.tumorMarker);
+    setVal('lab-form-clearance', lab.clearanceStatus);
+    setVal('lab-form-remarks', lab.remarks);
+
+    this.modalPendingDocs.laboratory = [...(lab.documents || [])];
+    this.renderModalDocsList('laboratory');
+    this.openModal(modal);
+  }
+
+  saveLaboratory(formData) {
+    const id = formData.get('lab-edit-id') || document.getElementById('lab-edit-id')?.value || ('lab-' + Date.now());
+    const patientId = formData.get('patientId') || document.getElementById('lab-form-patient-select')?.value;
+    if (!patientId) {
+      this.showToast('Please select an oncology patient first.', 'warning');
+      return;
+    }
+
+    const testDate = formData.get('testDate') || document.getElementById('lab-form-date')?.value || this.getTodayDateStr();
+    const testTime = formData.get('testTime') || document.getElementById('lab-form-time')?.value || '08:00';
+    const category = formData.get('category') || document.getElementById('lab-form-category')?.value || 'Complete Blood Count (CBC)';
+    const testName = formData.get('testName') || document.getElementById('lab-form-test-name')?.value || 'Laboratory Panel';
+    const orderingPhysician = formData.get('orderingPhysician') || document.getElementById('lab-form-doctor')?.value || 'Dr. Evelyn Reed, MD';
+    const performingFacility = formData.get('performingFacility') || document.getElementById('lab-form-facility')?.value || 'Imus Chemotherapy Center Clinical Laboratory';
+
+    const anc = formData.get('anc') || document.getElementById('lab-form-anc')?.value || '';
+    const platelets = formData.get('platelets') || document.getElementById('lab-form-platelets')?.value || '';
+    const wbc = formData.get('wbc') || document.getElementById('lab-form-wbc')?.value || '';
+    const hemoglobin = formData.get('hemoglobin') || document.getElementById('lab-form-hemoglobin')?.value || '';
+    const creatinine = formData.get('creatinine') || document.getElementById('lab-form-creatinine')?.value || '';
+    const alt = formData.get('alt') || document.getElementById('lab-form-alt')?.value || '';
+    const ast = formData.get('ast') || document.getElementById('lab-form-ast')?.value || '';
+    const tumorMarker = formData.get('tumorMarker') || document.getElementById('lab-form-tumor-marker')?.value || '';
+
+    const clearanceStatus = formData.get('clearanceStatus') || document.getElementById('lab-form-clearance')?.value || 'Cleared for Chemotherapy';
+    const remarks = formData.get('remarks') || document.getElementById('lab-form-remarks')?.value || '';
+
+    // Check existing documents
+    const existingLab = (this.laboratory || []).find(l => l.id === id);
+    const existingDocs = existingLab ? (existingLab.documents || []) : [];
+    const pendingDocs = this.modalPendingDocs.laboratory || [];
+    const mergedDocs = [...pendingDocs];
+    existingDocs.forEach(d => {
+      if (!mergedDocs.some(pd => pd.id === d.id)) {
+        mergedDocs.push(d);
+      }
+    });
+
+    const labRecord = {
+      id,
+      patientId,
+      testDate,
+      testTime,
+      category,
+      testName,
+      orderingPhysician,
+      performingFacility,
+      anc: anc !== '' && anc !== null ? Number(anc) : null,
+      platelets: platelets !== '' && platelets !== null ? Number(platelets) : null,
+      wbc: wbc !== '' && wbc !== null ? Number(wbc) : null,
+      hemoglobin: hemoglobin !== '' && hemoglobin !== null ? Number(hemoglobin) : null,
+      creatinine: creatinine !== '' && creatinine !== null ? Number(creatinine) : null,
+      alt: alt !== '' && alt !== null ? Number(alt) : null,
+      ast: ast !== '' && ast !== null ? Number(ast) : null,
+      tumorMarker: tumorMarker ? String(tumorMarker).trim() : '',
+      clearanceStatus,
+      remarks,
+      documents: mergedDocs,
+      updatedAt: new Date().toISOString()
+    };
+
+    const idx = (this.laboratory || []).findIndex(l => l.id === id);
+    if (idx >= 0) {
+      this.laboratory[idx] = labRecord;
+      this.showToast(`Updated laboratory result for ${this.getPatientById(patientId)?.fullName || 'patient'}.`, 'success');
+    } else {
+      this.laboratory = this.laboratory || [];
+      this.laboratory.unshift(labRecord);
+      this.showToast(`Logged new laboratory result successfully.`, 'success');
+    }
+
+    this.modalPendingDocs.laboratory = [];
+    this.saveData();
+    this.closeModal(document.getElementById('modal-laboratory'));
+    this.render();
+  }
+
+  deleteLaboratory(labId) {
+    const lab = (this.laboratory || []).find(l => l.id === labId);
+    if (!lab) return;
+    const pat = this.getPatientById(lab.patientId);
+    const patName = pat ? pat.fullName : 'patient';
+
+    if (confirm(`Are you sure you want to delete this lab record (${lab.testName}) for ${patName}?`)) {
+      this.laboratory = (this.laboratory || []).filter(l => l.id !== labId);
+      this.saveData();
+      this.showToast('Laboratory record deleted.', 'info');
+      this.render();
+    }
+  }
+
+  viewLaboratory(id) {
+    const lab = (this.laboratory || []).find(l => l.id === id);
+    if (!lab) {
+      this.showToast('Laboratory record not found.', 'danger');
+      return;
+    }
+    const patient = this.getPatientById(lab.patientId);
+
+    const titleEl = document.getElementById('modal-view-record-title');
+    const headerEl = document.getElementById('modal-view-record-header');
+    const bodyEl = document.getElementById('modal-view-record-body');
+    const editBtn = document.getElementById('modal-view-edit-btn');
+
+    if (titleEl) {
+      titleEl.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -3px;"><path d="M10 2v7.31L4.36 19.46A2 2 0 0 0 6.11 22h11.78a2 2 0 0 0 1.75-2.54L14 9.31V2"></path><path d="M8.5 2h7"></path></svg>
+        <span>Diagnostic Laboratory & Pre-Chemo Clearance</span>
+      `;
+    }
+    if (headerEl) {
+      headerEl.style.background = 'linear-gradient(135deg, #0284c7, #0369a1)';
+      headerEl.style.color = '#ffffff';
+    }
+
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <!-- Patient Banner -->
+        <div style="background: #f0f9ff; border: 1.5px solid #bae6fd; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <div class="patient-avatar-thumb" style="width: 48px; height: 48px; border: 2px solid #0284c7; font-size: 1rem; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #e0f2fe;">
+              ${this.renderPatientAvatar(patient)}
+            </div>
+            <div>
+              <div style="font-size: 1.15rem; font-weight: 700; color: #0369a1;">${patient ? this.escapeHtml(patient.fullName) : 'Unknown Patient'}</div>
+              <div style="font-size: 0.82rem; color: #0284c7; display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 2px;">
+                <span><strong>MRN:</strong> ${patient ? patient.mrn : 'N/A'}</span>
+                <span>|</span>
+                <span><strong>PhilHealth:</strong> ${patient?.philhealthNo || 'N/A'}</span>
+                <span>|</span>
+                <span><strong>Age/Sex:</strong> ${patient ? `${patient.age}y / ${patient.gender}` : 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 0.82rem; color: #0369a1; font-weight: 600;">Specimen Date:</div>
+            <div style="font-size: 1rem; font-weight: 700; color: #075985;">${lab.testDate} ${lab.testTime ? `at ${lab.testTime}` : ''}</div>
+            <div style="margin-top: 4px;">${this.renderLabClearanceBadge(lab)}</div>
+          </div>
+        </div>
+
+        <!-- Clinical Meta Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+          <div style="background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Test Category</div>
+            <div style="font-weight: 600; color: var(--secondary); margin-top: 2px;">${this.escapeHtml(lab.category || 'Laboratory')}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Panel Name</div>
+            <div style="font-weight: 600; color: var(--secondary); margin-top: 2px;">${this.escapeHtml(lab.testName || 'Lab Panel')}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Ordering Oncologist</div>
+            <div style="font-weight: 600; color: var(--secondary); margin-top: 2px;">${this.escapeHtml(lab.orderingPhysician || 'Oncologist')}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Performing Facility</div>
+            <div style="font-weight: 600; color: var(--secondary); margin-top: 2px;">${this.escapeHtml(lab.performingFacility || 'Clinical Lab')}</div>
+          </div>
+        </div>
+
+        <!-- Clinical Parameters Grid -->
+        <div class="panel" style="margin-bottom: 1.25rem; border: 1px solid #bae6fd; background: #f8fafc;">
+          <div class="panel-header" style="background: #e0f2fe; padding: 0.65rem 1rem;">
+            <h4 style="margin: 0; font-size: 0.9rem; color: #0369a1; font-weight: 700;">Clinical Diagnostic Parameters</h4>
+          </div>
+          <div class="panel-body" style="padding: 1rem;">
+            <div class="lab-values-row" style="margin: 0;">
+              ${lab.anc !== null && lab.anc !== '' ? `
+                <div class="lab-val-badge ${Number(lab.anc) >= 1.5 ? 'safe' : 'alert'}">
+                  <span>ANC:</span>
+                  <strong>${Number(lab.anc).toFixed(2)}</strong>
+                  <small>x10⁹/L ${Number(lab.anc) >= 1.5 ? '(Safe ≥ 1.5)' : '(Critical Low)'}</small>
+                </div>
+              ` : ''}
+              ${lab.platelets !== null && lab.platelets !== '' ? `
+                <div class="lab-val-badge ${Number(lab.platelets) >= 100 ? 'safe' : 'alert'}">
+                  <span>Platelets:</span>
+                  <strong>${lab.platelets}</strong>
+                  <small>x10⁹/L ${Number(lab.platelets) >= 100 ? '(Safe ≥ 100)' : '(Critical Low)'}</small>
+                </div>
+              ` : ''}
+              ${lab.wbc !== null && lab.wbc !== '' ? `
+                <div class="lab-val-badge neutral">
+                  <span>WBC:</span>
+                  <strong>${lab.wbc}</strong>
+                  <small>x10⁹/L (Ref: 4.0 - 11.0)</small>
+                </div>
+              ` : ''}
+              ${lab.hemoglobin !== null && lab.hemoglobin !== '' ? `
+                <div class="lab-val-badge neutral">
+                  <span>Hemoglobin:</span>
+                  <strong>${lab.hemoglobin}</strong>
+                  <small>g/dL (Ref: 12 - 16)</small>
+                </div>
+              ` : ''}
+              ${lab.creatinine !== null && lab.creatinine !== '' ? `
+                <div class="lab-val-badge ${Number(lab.creatinine) <= 1.2 ? 'safe' : 'alert'}">
+                  <span>Creatinine:</span>
+                  <strong>${Number(lab.creatinine).toFixed(2)}</strong>
+                  <small>mg/dL (Ref: 0.6 - 1.2)</small>
+                </div>
+              ` : ''}
+              ${lab.alt !== null && lab.alt !== '' ? `
+                <div class="lab-val-badge neutral">
+                  <span>SGPT / ALT:</span>
+                  <strong>${lab.alt}</strong>
+                  <small>U/L (Ref: 7 - 56)</small>
+                </div>
+              ` : ''}
+              ${lab.ast !== null && lab.ast !== '' ? `
+                <div class="lab-val-badge neutral">
+                  <span>SGOT / AST:</span>
+                  <strong>${lab.ast}</strong>
+                  <small>U/L (Ref: 10 - 40)</small>
+                </div>
+              ` : ''}
+              ${lab.tumorMarker ? `
+                <div class="lab-val-badge neutral" style="grid-column: 1 / -1;">
+                  <span>Tumor Marker / Specific Value:</span>
+                  <strong>${this.escapeHtml(lab.tumorMarker)}</strong>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+
+        <!-- Remarks -->
+        ${lab.remarks ? `
+          <div style="background: #ffffff; border-left: 4px solid #0284c7; padding: 0.85rem 1rem; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 1.25rem;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: #0284c7; text-transform: uppercase; margin-bottom: 0.35rem;">Technologist Remarks & Interpretation</div>
+            <div style="font-size: 0.88rem; color: #1e293b; line-height: 1.5;">${this.escapeHtml(lab.remarks)}</div>
+          </div>
+        ` : ''}
+
+        <!-- Attached Documents -->
+        <div style="margin-top: 1.25rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-dark); text-transform: uppercase;">Attached Scanned Slips & PDF Reports (${(lab.documents || []).length})</div>
+          </div>
+          <div class="doc-cards-grid">
+            ${this.renderDocumentCardsHtml(lab.documents || [], 'laboratory', lab.id)}
+          </div>
+        </div>
+      `;
+    }
+
+    if (editBtn) {
+      editBtn.style.display = 'inline-flex';
+      editBtn.onclick = () => {
+        this.closeModal(document.getElementById('modal-view-record'));
+        this.openEditLabModal(lab.id);
+      };
+    }
+
+    this.openModal(document.getElementById('modal-view-record'));
+  }
+
+  resetLabFilters() {
+    this.labSearchQuery = '';
+    this.labCategoryFilter = 'all';
+    this.labStatusFilter = 'all';
+    this.labPatientFilter = '';
+
+    const sIn = document.getElementById('lab-search-filter');
+    if (sIn) sIn.value = '';
+    const pSel = document.getElementById('lab-patient-filter');
+    if (pSel) pSel.value = '';
+    const cSel = document.getElementById('lab-category-filter');
+    if (cSel) cSel.value = 'all';
+    const stSel = document.getElementById('lab-status-filter');
+    if (stSel) stSel.value = 'all';
+
+    this.renderLaboratory();
+  }
+
+  /* ------------------------------------------------------------------
    * View: Patients Directory (CRUD)
    * ------------------------------------------------------------------ */
   renderPatientsList() {
@@ -912,6 +4157,13 @@ class ChemoApp {
             ${patient.philhealthNo ? `
               <div style="font-size: 0.72rem; color: #0284c7; font-weight: 600; margin-top: 2px;" title="PhilHealth Identification Number">
                 PIN: ${this.escapeHtml(patient.philhealthNo)}
+              </div>
+            ` : ''}
+            ${Array.isArray(patient.documents) && patient.documents.length > 0 ? `
+              <div style="margin-top: 3px;">
+                <span class="badge-doc-count" onclick="event.stopPropagation(); app.navigateTo('patient-chart', '${patient.id}'); setTimeout(() => document.querySelector('[data-chart-tab=\\'documents\\']')?.click(), 80);" title="${patient.documents.length} document(s) attached">
+                  📎 ${patient.documents.length} doc${patient.documents.length > 1 ? 's' : ''}
+                </span>
               </div>
             ` : ''}
           </td>
@@ -1085,8 +4337,10 @@ class ChemoApp {
 
     const consultBadge = document.getElementById('chart-tab-consult-count');
     const txBadge = document.getElementById('chart-tab-tx-count');
+    const docBadge = document.getElementById('chart-tab-doc-count');
     if (consultBadge) consultBadge.textContent = consults.length;
     if (txBadge) txBadge.textContent = treatments.length;
+    if (docBadge) docBadge.textContent = (patient.documents || []).length;
 
     // Render active tab contents
     this.renderChartActiveTab(patient, consults, treatments);
@@ -1178,7 +4432,7 @@ class ChemoApp {
                 <div class="timeline-card timeline-card-treatment" style="background-color: #fefce8 !important; border: 1.5px solid #fde047 !important; border-left: 6px solid #eab308 !important; border-radius: var(--radius-md); padding: 1.25rem; box-shadow: 0 2px 8px rgba(234, 179, 8, 0.12);">
                   <div class="timeline-card-header">
                     <div>
-                      <div class="timeline-title" style="color: #713f12; font-size: 1.05rem; font-weight: 700;">💉 Chemotherapy Infusion: ${this.escapeHtml(t.regimenName)} (Cycle ${t.cycleNumber} of ${t.cycleTotal || '?'})</div>
+                      <div class="timeline-title" style="color: #713f12; font-size: 1.05rem; font-weight: 700;">💉 Chemotherapy Infusion: ${this.escapeHtml(t.regimenName)} (Cycle ${this.escapeHtml(String(t.cycleNumber))} of ${this.escapeHtml(String(t.cycleTotal || '?'))})</div>
                       <div style="font-size: 0.8rem; color: #854d0e; font-weight: 500; margin-top: 2px;">
                         Nurse: <strong>${this.escapeHtml(t.supervisingNurse || 'Nurse')}</strong> | Oncologist: ${this.escapeHtml(t.attendingOncologist || '')}
                       </div>
@@ -1192,11 +4446,11 @@ class ChemoApp {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="7" r="3"/></svg>
                         <span>View</span>
                       </button>
-                      <button class="btn btn-sm btn-outline" onclick="app.requestEditTreatment('${t.id}')" title="Edit Chemo Infusion">
+                      <button class="btn btn-sm btn-outline" onclick="app.requestEditTreatment('${t.id}')" title="Edit Treatment">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         <span>Edit</span>
                       </button>
-                      <button class="btn btn-sm btn-ghost" style="color: var(--danger);" onclick="app.requestDeleteTreatment('${t.id}')" title="Delete Chemo Infusion">
+                      <button class="btn btn-sm btn-ghost" style="color: var(--danger);" onclick="app.requestDeleteTreatment('${t.id}')" title="Delete Treatment">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                       </button>
                     </div>
@@ -1286,14 +4540,14 @@ class ChemoApp {
     const txContainer = document.getElementById('chart-treatments-container');
     if (txContainer) {
       if (treatments.length === 0) {
-        txContainer.innerHTML = `<div class="empty-state"><h4>No Chemotherapy Infusions Logged</h4><p>Click "+ Log Chemo Infusion" to log an administered cycle.</p></div>`;
+        txContainer.innerHTML = `<div class="empty-state"><h4>No Treatments Logged</h4><p>Click "+ Log Treatment" to log an administered cycle.</p></div>`;
       } else {
         txContainer.innerHTML = treatments.map(t => `
           <div class="panel treatment-panel treatment-card-container" style="margin-bottom: 1.25rem; background-color: #fefce8 !important; border: 1.5px solid #fde047 !important; border-left: 6px solid #eab308 !important; border-radius: var(--radius-md); box-shadow: 0 2px 8px rgba(234, 179, 8, 0.12);">
             <div class="panel-header" style="background: #fef08a; border-bottom: 1.5px solid #fde047;">
               <div>
                 <div class="panel-title" style="color: #713f12; font-size: 1.05rem; font-weight: 700;">
-                  🟡 ${this.escapeHtml(t.regimenName)} - Cycle ${t.cycleNumber} of ${t.cycleTotal || '?'} (Day ${t.dayOfCycle || 1})
+                  🟡 ${this.escapeHtml(t.regimenName)} - Cycle ${this.escapeHtml(String(t.cycleNumber))} of ${this.escapeHtml(String(t.cycleTotal || '?'))} (Day ${t.dayOfCycle || 1})
                 </div>
                 <div style="font-size: 0.8rem; color: #854d0e; font-weight: 500;">${t.treatmentDate} ${t.startTime ? `(${t.startTime} - ${t.endTime || ''})` : ''} | Nurse: <strong>${this.escapeHtml(t.supervisingNurse || '')}</strong></div>
               </div>
@@ -1394,6 +4648,9 @@ class ChemoApp {
         </div>
       `;
     }
+
+    // 5. Clinical Documents Tab
+    this.renderPatientDocuments(patient);
   }
 
   /* ------------------------------------------------------------------
@@ -1449,6 +4706,13 @@ class ChemoApp {
           <td>
             <strong>${c.date}</strong>
             <div style="font-size: 0.78rem; color: var(--text-muted);">${c.time || 'Clinic'}</div>
+            ${Array.isArray(c.documents) && c.documents.length > 0 ? `
+              <div style="margin-top: 3px;">
+                <span class="badge-doc-count" onclick="event.stopPropagation(); app.viewConsultation('${c.id}')" title="${c.documents.length} document(s) attached">
+                  📎 ${c.documents.length} doc${c.documents.length > 1 ? 's' : ''}
+                </span>
+              </div>
+            ` : ''}
           </td>
           <td>
             <span class="patient-link" onclick="app.navigateTo('patient-chart', '${c.patientId}')">
@@ -1546,6 +4810,13 @@ class ChemoApp {
           <td>
             <strong>${t.treatmentDate}</strong>
             <div style="font-size: 0.75rem; color: var(--text-muted);">${t.startTime || ''} ${t.endTime ? `- ${t.endTime}` : ''}</div>
+            ${Array.isArray(t.documents) && t.documents.length > 0 ? `
+              <div style="margin-top: 3px;">
+                <span class="badge-doc-count" onclick="event.stopPropagation(); app.viewTreatment('${t.id}')" title="${t.documents.length} document(s) attached">
+                  📎 ${t.documents.length} doc${t.documents.length > 1 ? 's' : ''}
+                </span>
+              </div>
+            ` : ''}
           </td>
           <td>
             <div style="display: flex; align-items: center; gap: 0.65rem;">
@@ -1564,7 +4835,7 @@ class ChemoApp {
             <strong>${this.escapeHtml(t.regimenName || 'Protocol')}</strong>
           </td>
           <td>
-            <span class="badge badge-warning">Cycle ${t.cycleNumber} of ${t.cycleTotal || '?'}</span>
+            <span class="badge badge-warning">Cycle ${this.escapeHtml(String(t.cycleNumber))} of ${this.escapeHtml(String(t.cycleTotal || '?'))}</span>
             <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Day ${t.dayOfCycle || 1}</div>
           </td>
           <td style="max-width: 220px;">
@@ -1970,7 +5241,7 @@ class ChemoApp {
 
         <div class="stat-card">
           <div class="stat-info">
-            <p>Chemo Infusions Administered</p>
+            <p>Treatments Administered</p>
             <h3>${totalTx}</h3>
             <div class="stat-subtext">${totalAgentsCount} drug infusions verified</div>
           </div>
@@ -2283,7 +5554,7 @@ class ChemoApp {
                               return `
                                 <tr>
                                   <td><strong>${t.treatmentDate}</strong><div style="font-size: 0.75rem; color: var(--text-muted);">${t.startTime || ''} ${t.endTime ? `- ${t.endTime}` : ''}</div></td>
-                                  <td><strong>${this.escapeHtml(t.regimenName)}</strong> (Cycle ${t.cycleNumber})</td>
+                                  <td><strong>${this.escapeHtml(t.regimenName)}</strong> (Cycle ${this.escapeHtml(String(t.cycleNumber))})</td>
                                   <td style="max-width: 240px; font-size: 0.78rem;">${this.escapeHtml(drugsStr || '-')}</td>
                                   <td>
                                     <div>${this.escapeHtml(t.supervisingNurse || '-')}</div>
@@ -2520,7 +5791,7 @@ class ChemoApp {
                     </td>
                     <td>
                       <strong>${this.escapeHtml(t.regimenName)}</strong>
-                      <div style="font-size: 0.75rem; color: var(--text-muted);">Cycle ${t.cycleNumber} of ${t.cycleTotal || '?'} (Day ${t.dayOfCycle || 1})</div>
+                      <div style="font-size: 0.75rem; color: var(--text-muted);">Cycle ${this.escapeHtml(String(t.cycleNumber))} of ${this.escapeHtml(String(t.cycleTotal || '?'))} (Day ${t.dayOfCycle || 1})</div>
                     </td>
                     <td style="font-size: 0.8rem; line-height: 1.4;">${drugsList || '-'}</td>
                     <td>
@@ -2772,6 +6043,8 @@ class ChemoApp {
     document.getElementById('form-calculated-bsa').textContent = '--';
     document.getElementById('form-calculated-bmi').textContent = '--';
     this.setPatientModalPhoto(null, 'Female');
+    this.modalPendingDocs.patient = [];
+    this.renderModalDocsList('patient');
     this.openModal(modal);
   }
 
@@ -2865,6 +6138,8 @@ class ChemoApp {
     document.getElementById('patient-comorbidities').value = Array.isArray(patient.comorbidities) ? patient.comorbidities.join(', ') : (patient.comorbidities || '');
 
     this.setPatientModalPhoto(patient.photo || null, patient.gender);
+    this.modalPendingDocs.patient = [...(patient.documents || [])];
+    this.renderModalDocsList('patient');
     this.openModal(modal);
   }
 
@@ -2936,6 +6211,7 @@ class ChemoApp {
       status: formData.get('patient-status') || document.getElementById('patient-status')?.value,
       ecogBaseline: parseInt(formData.get('patient-ecog') || document.getElementById('patient-ecog')?.value || '0', 10),
       comorbidities: formData.get('patient-comorbidities') || document.getElementById('patient-comorbidities')?.value,
+      documents: [...(this.modalPendingDocs.patient || [])],
       updatedAt: new Date().toISOString()
     };
 
@@ -3367,9 +6643,12 @@ class ChemoApp {
       if (nurseField) nurseField.value = patient.primaryNurse;
     }
     const cycleNumField = document.getElementById('tx-cycle-num');
-    if (cycleNumField) cycleNumField.value = (patient.cyclesCompleted || 0) + 1;
+    if (cycleNumField) {
+      const prevCompleted = parseInt(patient.cyclesCompleted, 10);
+      cycleNumField.value = !isNaN(prevCompleted) ? (prevCompleted + 1) : (patient.cyclesCompleted || '1');
+    }
     const cycleTotalField = document.getElementById('tx-cycle-total');
-    if (cycleTotalField) cycleTotalField.value = patient.cyclesPlanned || 8;
+    if (cycleTotalField) cycleTotalField.value = patient.cyclesPlanned || '8';
   }
 
   populatePatientDropdowns() {
@@ -3379,12 +6658,21 @@ class ChemoApp {
     const consultFilter = document.getElementById('consult-patient-filter');
     const txFilter = document.getElementById('tx-patient-filter');
     const reportPatFilter = document.getElementById('report-patient-filter');
+    const labPatFilter = document.getElementById('lab-patient-filter');
+    const labFormPatSelect = document.getElementById('lab-form-patient-select');
 
     const options = this.patients.map(p => `<option value="${p.id}">${this.escapeHtml(p.fullName)} (${p.mrn}) - ${p.cancerType}</option>`).join('');
 
     const filterOptions = '<option value="">All Patients</option>' + options;
     if (consultFilter) consultFilter.innerHTML = filterOptions;
     if (txFilter) txFilter.innerHTML = filterOptions;
+    if (labPatFilter) {
+      labPatFilter.innerHTML = filterOptions;
+      labPatFilter.value = this.labPatientFilter || '';
+    }
+    if (labFormPatSelect) {
+      labFormPatSelect.innerHTML = '<option value="">-- Choose Oncology Patient --</option>' + options;
+    }
 
     if (reportPatFilter) {
       reportPatFilter.innerHTML = '<option value="">All Patients (Center Summary)</option>' + options;
@@ -3436,6 +6724,8 @@ class ChemoApp {
       if (wtField) wtField.value = '';
     }
 
+    this.modalPendingDocs.consultation = [];
+    this.renderModalDocsList('consultation');
     this.openModal(modal);
     setTimeout(() => searchInput?.focus(), 150);
   }
@@ -3511,6 +6801,8 @@ class ChemoApp {
     setVal('consult-plan', consult.managementPlan);
     setVal('consult-next-date', consult.nextAppointmentDate);
 
+    this.modalPendingDocs.consultation = [...(consult.documents || [])];
+    this.renderModalDocsList('consultation');
     this.openModal(modal);
   }
 
@@ -3552,6 +6844,7 @@ class ChemoApp {
       doseAdjustmentPercent: parseInt(formData.get('consult-dose-adj') || '0', 10),
       managementPlan: formData.get('consult-plan'),
       nextAppointmentDate: formData.get('consult-next-date'),
+      documents: [...(this.modalPendingDocs.consultation || [])],
       createdAt: new Date().toISOString()
     };
 
@@ -3582,6 +6875,19 @@ class ChemoApp {
       this.closeModal(document.getElementById('modal-consultation'));
       this.showToast('Consultation and clearance record logged successfully!', 'success');
       this.render();
+    }
+
+    // Auto-schedule next appointment if specified
+    const nextApptDate = formData.get('consult-next-date') || document.getElementById('consult-next-date')?.value;
+    if (nextApptDate) {
+      this.createOrUpdateLinkedSchedule({
+        patientId,
+        type: 'consultation',
+        scheduledDate: nextApptDate,
+        scheduledTime: '09:00',
+        oncologist: formData.get('consult-oncologist') || document.getElementById('consult-oncologist')?.value || '',
+        reason: 'Scheduled Follow-Up & Clearance'
+      });
     }
   }
 
@@ -3654,6 +6960,9 @@ class ChemoApp {
     // Initialize drug table with first regimen
     this.onRegimenSelectChanged();
 
+    this.modalPendingDocs.treatment = [];
+    this.renderModalDocsList('treatment');
+
     this.openModal(modal);
     setTimeout(() => searchInput?.focus(), 150);
   }
@@ -3665,7 +6974,7 @@ class ChemoApp {
     const patName = patient ? patient.fullName : 'Patient';
 
     this.requireAuthorization(
-      `Edit Chemo Infusion: ${patName} (Cycle ${tx.cycleNumber} - ${tx.regimenName})`,
+      `Edit Treatment: ${patName} (Cycle ${tx.cycleNumber} - ${tx.regimenName})`,
       () => this.openEditTreatmentModal(id)
     );
   }
@@ -3698,8 +7007,8 @@ class ChemoApp {
     };
 
     setVal('tx-regimen-select', tx.regimenId || 'custom');
-    setVal('tx-cycle-num', tx.cycleNumber || 1);
-    setVal('tx-cycle-total', tx.cycleTotal || 8);
+    setVal('tx-cycle-num', tx.cycleNumber !== undefined && tx.cycleNumber !== null ? tx.cycleNumber : '1');
+    setVal('tx-cycle-total', tx.cycleTotal !== undefined && tx.cycleTotal !== null ? tx.cycleTotal : '');
     setVal('tx-date', tx.treatmentDate);
     setVal('tx-start-time', tx.startTime);
     setVal('tx-end-time', tx.endTime);
@@ -3759,6 +7068,9 @@ class ChemoApp {
         </table>
       `;
     }
+
+    this.modalPendingDocs.treatment = [...(tx.documents || [])];
+    this.renderModalDocsList('treatment');
 
     this.openModal(modal);
   }
@@ -3861,8 +7173,10 @@ class ChemoApp {
     const regimenId = regimenSelect ? regimenSelect.value : 'custom';
     const regimenName = regimenSelect && regimenSelect.selectedOptions[0] ? regimenSelect.selectedOptions[0].text : 'Chemotherapy';
 
-    const cycleNumber = parseInt(formData.get('tx-cycle-num') || '1', 10);
-    const cycleTotal = parseInt(formData.get('tx-cycle-total') || '8', 10);
+    const cycleNumRaw = (formData.get('tx-cycle-num') || document.getElementById('tx-cycle-num')?.value || '1').toString().trim();
+    const cycleTotalRaw = (formData.get('tx-cycle-total') || document.getElementById('tx-cycle-total')?.value || '').toString().trim();
+    const cycleNumber = cycleNumRaw || '1';
+    const cycleTotal = cycleTotalRaw || '';
 
     // Extract drugs table
     const drugs = [];
@@ -3901,13 +7215,17 @@ class ChemoApp {
       toleranceGrade: formData.get('tx-tolerance') || document.getElementById('tx-tolerance')?.value,
       adverseReactions: formData.get('tx-adverse-notes') || document.getElementById('tx-adverse-notes')?.value,
       nextCycleDate: formData.get('tx-next-cycle') || document.getElementById('tx-next-cycle')?.value,
+      documents: [...(this.modalPendingDocs.treatment || [])],
       createdAt: new Date().toISOString()
     };
 
     // Update patient's completed cycles count if this is the newest cycle
     const patient = this.getPatientById(patientId);
-    if (patient && cycleNumber > (patient.cyclesCompleted || 0)) {
-      patient.cyclesCompleted = cycleNumber;
+    if (patient) {
+      const numVal = parseInt(cycleNumber, 10);
+      if (!isNaN(numVal) && numVal > (parseInt(patient.cyclesCompleted, 10) || 0)) {
+        patient.cyclesCompleted = numVal;
+      }
     }
 
     const existingIdx = this.treatments.findIndex(t => t.id === id);
@@ -3928,6 +7246,25 @@ class ChemoApp {
       this.showToast(`Chemotherapy infusion session logged for ${patient ? patient.fullName : 'patient'}!`, 'success');
       this.render();
     }
+
+    // Auto-schedule next cycle target date if specified
+    const nextTxDate = formData.get('tx-next-cycle') || document.getElementById('tx-next-cycle')?.value;
+    if (nextTxDate) {
+      const parsedNum = parseInt(cycleNumber, 10);
+      const nextCycleVal = !isNaN(parsedNum) ? String(parsedNum + 1) : '';
+      this.createOrUpdateLinkedSchedule({
+        patientId,
+        type: 'treatment',
+        scheduledDate: nextTxDate,
+        scheduledTime: '09:00',
+        regimenName,
+        cycleNumber: nextCycleVal,
+        cycleTotal: cycleTotal || '',
+        oncologist: formData.get('tx-oncologist') || document.getElementById('tx-oncologist')?.value || '',
+        nurse: formData.get('tx-nurse') || document.getElementById('tx-nurse')?.value || '',
+        reason: `${regimenName} (Cycle ${nextCycleVal || 'Next'})`
+      });
+    }
   }
 
   requestDeleteTreatment(id) {
@@ -3937,9 +7274,9 @@ class ChemoApp {
     const patName = patient ? patient.fullName : 'Patient';
 
     this.requireAuthorization(
-      `Delete Chemo Infusion Record: ${patName} (Cycle ${tx.cycleNumber} - ${tx.regimenName}) on ${tx.treatmentDate}`,
+      `Delete Treatment Record: ${patName} (Cycle ${tx.cycleNumber} - ${tx.regimenName}) on ${tx.treatmentDate}`,
       () => {
-        if (confirm(`Permanently delete chemotherapy infusion record for ${patName} (Cycle ${tx.cycleNumber} - ${tx.regimenName}) on ${tx.treatmentDate}? This action cannot be undone.`)) {
+        if (confirm(`Permanently delete chemotherapy treatment record for ${patName} (Cycle ${tx.cycleNumber} - ${tx.regimenName}) on ${tx.treatmentDate}? This action cannot be undone.`)) {
           this.treatments = this.treatments.filter(t => t.id !== id);
           this.saveData();
           this.showToast(`Chemotherapy treatment record for ${patName} deleted.`, 'info');
@@ -4275,7 +7612,36 @@ class ChemoApp {
             ${this.escapeHtml(consult.managementPlan || 'Cleared to proceed with chemotherapy protocol.')}
           </div>
         </div>
+
+        <!-- Attached Clinical Documents -->
+        <div style="margin-top: 1.25rem; border-top: 1px solid #e2e8f0; padding-top: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <strong style="color: #0f172a; font-size: 0.92rem; display: flex; align-items: center; gap: 6px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+              Attached Consultation Documents (${consult.documents ? consult.documents.length : 0})
+            </strong>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <input type="file" id="view-consult-doc-input" multiple style="display: none;" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.csv,.doc,.docx" />
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('view-consult-doc-input').click()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                Upload Document
+              </button>
+            </div>
+          </div>
+          <div id="view-consult-docs-container">
+            ${this.renderDocumentCardsHtml(consult.documents || [], 'consultation', consult.id)}
+          </div>
+        </div>
       `;
+
+      const consultFileInput = document.getElementById('view-consult-doc-input');
+      if (consultFileInput) {
+        consultFileInput.onchange = (e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            this.uploadFilesToEntity(e.target.files, 'consultation', consult.id, 'Consultation Report');
+          }
+        };
+      }
     }
 
     if (editBtn) {
@@ -4350,7 +7716,7 @@ class ChemoApp {
           <div style="background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem;">
             <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Cycle & Schedule</div>
             <div style="font-weight: 700; color: var(--secondary); font-size: 0.95rem; margin-top: 2px;">
-              Cycle ${tx.cycleNumber} of ${tx.cycleTotal || '?'} (Day ${tx.dayOfCycle || 1})
+              Cycle ${this.escapeHtml(String(tx.cycleNumber))} of ${this.escapeHtml(String(tx.cycleTotal || '?'))} (Day ${tx.dayOfCycle || 1})
             </div>
           </div>
           <div style="background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem;">
@@ -4445,7 +7811,36 @@ class ChemoApp {
             <div style="color: #991b1b; font-size: 0.85rem;">${this.escapeHtml(tx.adverseReactions)}</div>
           </div>
         ` : ''}
+
+        <!-- Attached Infusion & Treatment Documents -->
+        <div style="margin-top: 1.25rem; border-top: 1px solid #e2e8f0; padding-top: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <strong style="color: #0f172a; font-size: 0.92rem; display: flex; align-items: center; gap: 6px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+              Attached Infusion Documents (${tx.documents ? tx.documents.length : 0})
+            </strong>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <input type="file" id="view-tx-doc-input" multiple style="display: none;" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.csv,.doc,.docx" />
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('view-tx-doc-input').click()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                Upload Document
+              </button>
+            </div>
+          </div>
+          <div id="view-tx-docs-container">
+            ${this.renderDocumentCardsHtml(tx.documents || [], 'treatment', tx.id)}
+          </div>
+        </div>
       `;
+
+      const txFileInput = document.getElementById('view-tx-doc-input');
+      if (txFileInput) {
+        txFileInput.onchange = (e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            this.uploadFilesToEntity(e.target.files, 'treatment', tx.id, 'Infusion Log');
+          }
+        };
+      }
     }
 
     if (editBtn) {
@@ -4717,6 +8112,10 @@ class ChemoApp {
       }
     });
 
+    document.getElementById('btn-forgot-password')?.addEventListener('click', () => {
+      this.openModal(document.getElementById('modal-forgot-password'));
+    });
+
     document.getElementById('btn-quick-admin')?.addEventListener('click', () => {
       const u = document.getElementById('login-username');
       const p = document.getElementById('login-password');
@@ -4753,6 +8152,211 @@ class ChemoApp {
       const err = document.getElementById('supervisor-auth-error-alert');
       if (err) err.style.display = 'none';
     });
+
+    // Clinical Document Upload & Attachment Listeners
+    // 1. Patient Chart Dropzone & File Input
+    document.getElementById('btn-chart-browse-docs')?.addEventListener('click', () => {
+      document.getElementById('patient-chart-file-input')?.click();
+    });
+
+    document.getElementById('patient-chart-file-input')?.addEventListener('change', (e) => {
+      const cat = document.getElementById('patient-chart-doc-category')?.value || 'General Clinical Document';
+      if (e.target.files && e.target.files.length > 0) {
+        this.uploadFilesToEntity(e.target.files, 'patient', this.selectedPatientId, cat);
+      }
+      e.target.value = '';
+    });
+
+    const chartDropzone = document.getElementById('chart-doc-dropzone');
+    if (chartDropzone) {
+      chartDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        chartDropzone.classList.add('dragover');
+      });
+      chartDropzone.addEventListener('dragleave', () => {
+        chartDropzone.classList.remove('dragover');
+      });
+      chartDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        chartDropzone.classList.remove('dragover');
+        const cat = document.getElementById('patient-chart-doc-category')?.value || 'General Clinical Document';
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          this.uploadFilesToEntity(e.dataTransfer.files, 'patient', this.selectedPatientId, cat);
+        }
+      });
+    }
+
+    // 2. Patient Modal Attachment Input
+    document.getElementById('btn-modal-patient-add-doc')?.addEventListener('click', () => {
+      document.getElementById('modal-patient-file-input')?.click();
+    });
+
+    document.getElementById('modal-patient-file-input')?.addEventListener('change', (e) => {
+      const cat = document.getElementById('modal-patient-doc-category')?.value || 'Clinical Summary';
+      if (e.target.files && e.target.files.length > 0) {
+        this.uploadFilesToEntity(e.target.files, 'patient', null, cat);
+      }
+      e.target.value = '';
+    });
+
+    // 3. Consultation Modal Attachment Input
+    document.getElementById('btn-modal-consult-add-doc')?.addEventListener('click', () => {
+      document.getElementById('modal-consult-file-input')?.click();
+    });
+
+    document.getElementById('modal-consult-file-input')?.addEventListener('change', (e) => {
+      const cat = document.getElementById('modal-consult-doc-category')?.value || 'Lab Report';
+      if (e.target.files && e.target.files.length > 0) {
+        this.uploadFilesToEntity(e.target.files, 'consultation', null, cat);
+      }
+      e.target.value = '';
+    });
+
+    // 4. Treatment Infusion Modal Attachment Input
+    document.getElementById('btn-modal-tx-add-doc')?.addEventListener('click', () => {
+      document.getElementById('modal-tx-file-input')?.click();
+    });
+
+    document.getElementById('modal-tx-file-input')?.addEventListener('change', (e) => {
+      const cat = document.getElementById('modal-tx-doc-category')?.value || 'Infusion Flow Sheet';
+      if (e.target.files && e.target.files.length > 0) {
+        this.uploadFilesToEntity(e.target.files, 'treatment', null, cat);
+      }
+      e.target.value = '';
+    });
+
+    // "From" and "To" Date Range Filter
+    document.getElementById('btn-filter-date-range')?.addEventListener('click', () => {
+      this.applyScheduleDateFilter();
+    });
+    document.getElementById('schedule-date-from')?.addEventListener('keydown', (e) => { 
+      if (e.key === 'Enter') this.applyScheduleDateFilter(); 
+    });
+    document.getElementById('schedule-date-to')?.addEventListener('keydown', (e) => { 
+      if (e.key === 'Enter') this.applyScheduleDateFilter(); 
+    });
+
+    document.getElementById('schedule-date-from')?.addEventListener('change', (e) => {
+      this.scheduleDateFrom = e.target.value;
+    });
+
+    document.getElementById('schedule-date-to')?.addEventListener('change', (e) => {
+      this.scheduleDateTo = e.target.value;
+    });
+
+    document.getElementById('btn-clear-date-range')?.addEventListener('click', () => {
+      this.clearScheduleDateFilter();
+    });
+
+    document.getElementById('schedule-type-filter')?.addEventListener('change', (e) => {
+      this.scheduleTypeFilter = e.target.value;
+      this.renderSchedule();
+    });
+
+    document.getElementById('schedule-status-filter')?.addEventListener('change', (e) => {
+      this.scheduleStatusFilter = e.target.value;
+      this.renderSchedule();
+    });
+
+    document.getElementById('schedule-search-input')?.addEventListener('input', (e) => {
+      this.scheduleSearchQuery = e.target.value;
+      this.renderSchedule();
+    });
+
+    document.getElementById('btn-schedule-new-appt')?.addEventListener('click', () => {
+      this.openNewScheduleModal();
+    });
+
+    document.querySelectorAll('input[name="sch-type"]').forEach(r => {
+      r.addEventListener('change', () => this.onScheduleTypeChanged());
+    });
+
+    document.getElementById('sch-patient-search')?.addEventListener('input', (e) => {
+      this.populateSchedulePatientDropdown(e.target.value);
+    });
+
+    document.getElementById('btn-sch-clear-patient')?.addEventListener('click', () => {
+      const preview = document.getElementById('sch-selected-patient-preview');
+      const hidden = document.getElementById('sch-patient-select');
+      const searchInput = document.getElementById('sch-patient-search');
+      if (preview) preview.style.display = 'none';
+      if (hidden) hidden.value = '';
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.style.display = 'block';
+        searchInput.focus();
+      }
+    });
+
+    document.getElementById('form-schedule-appointment')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.saveSchedule(new FormData(e.target));
+    });
+
+    // Tomorrow's Schedule Reminder Events
+    document.getElementById('btn-header-reminder')?.addEventListener('click', () => {
+      this.checkAndShowTomorrowReminder(true);
+    });
+
+    document.getElementById('btn-print-tomorrow-reminder')?.addEventListener('click', () => {
+      this.printTomorrowSchedule();
+    });
+
+    document.getElementById('btn-reminder-go-to-schedule')?.addEventListener('click', () => {
+      this.closeModal(document.getElementById('modal-tomorrow-reminder'));
+      this.navigateTo('schedule');
+    });
+
+    document.getElementById('chk-reminder-dismiss-today')?.addEventListener('change', (e) => {
+      const todayStr = this.getTodayDateStr();
+      if (e.target.checked) {
+        localStorage.setItem('ICC_dismiss_tomorrow_reminder_' + todayStr, 'true');
+      } else {
+        localStorage.removeItem('ICC_dismiss_tomorrow_reminder_' + todayStr);
+      }
+    });
+
+    // Laboratory Module Events
+    document.getElementById('btn-add-lab-main')?.addEventListener('click', () => {
+      this.openNewLabModal();
+    });
+
+    document.getElementById('lab-search-filter')?.addEventListener('input', (e) => {
+      this.labSearchQuery = e.target.value;
+      this.renderLaboratory();
+    });
+
+    document.getElementById('lab-patient-filter')?.addEventListener('change', (e) => {
+      this.labPatientFilter = e.target.value;
+      this.renderLaboratory();
+    });
+
+    document.getElementById('lab-category-filter')?.addEventListener('change', (e) => {
+      this.labCategoryFilter = e.target.value;
+      this.renderLaboratory();
+    });
+
+    document.getElementById('lab-status-filter')?.addEventListener('change', (e) => {
+      this.labStatusFilter = e.target.value;
+      this.renderLaboratory();
+    });
+
+    document.getElementById('form-laboratory')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.saveLaboratory(new FormData(e.target));
+    });
+
+    document.getElementById('btn-modal-lab-add-doc')?.addEventListener('click', () => {
+      document.getElementById('modal-lab-file-input')?.click();
+    });
+
+    document.getElementById('modal-lab-file-input')?.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+      const category = document.getElementById('modal-lab-doc-category')?.value || 'CBC Hematology Report';
+      this.uploadFilesToEntity(files, 'laboratory', this.editingLabId || null, category);
+      e.target.value = '';
+    });
   }
 }
 
@@ -4760,4 +8364,5 @@ class ChemoApp {
 let app;
 window.addEventListener('DOMContentLoaded', () => {
   app = new ChemoApp();
+  window.app = app;
 });

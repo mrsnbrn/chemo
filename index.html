@@ -42,11 +42,6 @@
         <p class="login-subtitle">Oncology Electronic Medical Records &amp; Infusion Suite</p>
       </div>
 
-      <div class="login-security-banner">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        <span>Secure Medical Gateway &bull; Clinical Credentials Required</span>
-      </div>
-
       <div id="login-error-alert" class="login-alert-danger" style="display: none;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <span id="login-error-text">Invalid username or password. Please verify your clinical credentials.</span>
@@ -57,7 +52,7 @@
           <label class="login-field-label" for="login-username">Staff Username</label>
           <div class="login-input-container">
             <svg class="login-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <input type="text" id="login-username" class="login-input" placeholder="e.g. admin or nurse" autocomplete="username" required>
+            <input type="text" id="login-username" class="login-input" placeholder="e.g. admin or guest" autocomplete="username" required>
           </div>
         </div>
 
@@ -72,8 +67,12 @@
           </div>
         </div>
 
+        <div class="login-forgot-row">
+          <button type="button" class="btn-forgot-password" id="btn-forgot-password">Forgot Password?</button>
+        </div>
+
         <button type="submit" class="btn-login-submit" id="btn-login-submit">
-          <span>Sign In to Clinical Suite</span>
+          <span>Login</span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </form>
@@ -95,6 +94,59 @@
             <div class="quick-card-creds">User: <strong>guest</strong> | Pass: <strong>guest123</strong></div>
             <div class="quick-card-privileges">🔒 Restricted: View only access</div>
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div class="modal-backdrop" id="modal-forgot-password">
+      <div class="modal-dialog" style="max-width: 480px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #096ca7, #0284c7); color: white;">
+          <h3 class="modal-title" style="color: white; display: flex; align-items: center; gap: 0.5rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span>Password Assistance &amp; Recovery</span>
+          </h3>
+          <button class="modal-close-btn" style="color: white;" data-close-modal="modal-forgot-password">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div style="background: var(--border-light); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; border-left: 4px solid var(--primary);">
+            <div style="font-weight: 700; margin-bottom: 0.35rem; color: var(--secondary);">Clinical System Security</div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.45; margin: 0;">
+              To protect sensitive oncologic patient data and records, staff account credentials are reset directly by the Medical Director or IT Administration.
+            </p>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.85rem;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary); flex-shrink: 0; margin-top: 2px;"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+              <div>
+                <strong>Email Support:</strong>
+                <div><a href="mailto:imuscenter@wehopemedical.com" style="color: var(--primary); font-weight: 600;">imuscenter@wehopemedical.com</a></div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.85rem;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary); flex-shrink: 0; margin-top: 2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <div>
+                <strong>Center Location:</strong>
+                <div>Pedro Reyes St. Malagasang I-G Imus City, Cavite 4103</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem; font-size: 0.825rem;">
+            <div style="font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.04em; margin-bottom: 0.45rem;">Staff Test Accounts Reminder:</div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; padding-bottom: 0.35rem; border-bottom: 1px dashed var(--border);">
+              <span><strong>Administrator:</strong> <code>admin</code></span>
+              <span>Password: <code>admin123</code></span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span><strong>Guest User:</strong> <code>guest</code></span>
+              <span>Password: <code>guest123</code></span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-close-modal="modal-forgot-password">Understood / Return to Login</button>
         </div>
       </div>
     </div>
@@ -134,6 +186,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
           <span>Dashboard</span>
         </button>
+        <button class="nav-item" data-view="schedule">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          <span>Schedule</span>
+          <span class="nav-badge" id="nav-schedule-count">0</span>
+        </button>
         <button class="nav-item" data-view="patients">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
           <span>Patients</span>
@@ -146,8 +203,13 @@
         </button>
         <button class="nav-item" data-view="treatments">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 2 4 4-14 14H4v-4L18 2z"></path><path d="m14.5 5.5 4 4"></path><path d="M4 20h16"></path></svg>
-          <span>Chemo Infusions</span>
+          <span>Treatments</span>
           <span class="nav-badge" id="nav-tx-count">0</span>
+        </button>
+        <button class="nav-item" data-view="laboratory">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2v7.31L4.36 19.46A2 2 0 0 0 6.11 22h11.78a2 2 0 0 0 1.75-2.54L14 9.31V2"></path><path d="M8.5 2h7"></path><path d="M14 9.3h-4"></path><path d="m7.5 17 9-3"></path></svg>
+          <span>Laboratory</span>
+          <span class="nav-badge" id="nav-lab-count">0</span>
         </button>
 
         <div class="nav-section-title">Reports &amp; Data</div>
@@ -212,6 +274,15 @@
           <button class="btn btn-secondary" id="btn-quick-new-tx">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 2 4 4-14 14H4v-4L18 2z"></path></svg>
             <span>Log Chemo</span>
+          </button>
+
+          <!-- Tomorrow's Schedule Reminder Bell Button -->
+          <button type="button" class="btn btn-secondary btn-reminder-bell" id="btn-header-reminder" title="Tomorrow's Patient Consultations & Treatments Reminder">
+            <span style="position: relative; display: inline-flex; align-items: center;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+              <span class="reminder-badge" id="header-reminder-count">0</span>
+            </span>
+            <span class="reminder-btn-text">Tomorrow's Schedule</span>
           </button>
 
           <!-- Dark / Light Theme Toggle -->
@@ -309,7 +380,7 @@
               <div class="panel-header" style="background: #fefce8; border-bottom: 1.5px solid #fde047;">
                 <div class="panel-title" style="color: #713f12;">
                   <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #eab308; margin-right: 4px;"></span>
-                  <span>Recent Chemotherapy Infusions</span>
+                  <span>Recent Treatments</span>
                 </div>
                 <button class="btn btn-sm btn-ghost" onclick="app.navigateTo('treatments')">View All Treatments →</button>
               </div>
@@ -357,6 +428,101 @@
             <div class="panel-body" id="dashboard-toxicity-alerts">
               <!-- Dynamically populated safety warnings -->
             </div>
+          </div>
+        </section>
+
+        <!-- SCHEDULE & APPOINTMENTS VIEW -->
+        <section id="view-schedule" class="view-section">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h2>Clinical Schedule & Appointments</h2>
+              <p>Daily and upcoming appointment agenda for consultations, pre-chemo clearances, and chemotherapy treatments</p>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <button class="btn btn-primary" id="btn-schedule-new-appt">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>+ Schedule Appointment</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Schedule Metrics Strip -->
+          <div class="stats-grid" style="margin-bottom: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(260px, 340px));">
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>Appointments Today</p>
+                <h3 id="stat-schedule-today-count">0</h3>
+                <div class="stat-subtext" id="stat-schedule-today-sub">Scheduled for today</div>
+              </div>
+              <div class="stat-icon blue">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Schedule Filter Toolbar -->
+          <div class="panel" style="margin-bottom: 1.25rem;">
+            <div class="panel-body" style="padding: 1rem 1.25rem;">
+              <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                
+                <!-- Date Range Filter ("From" and "To") -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                  
+                  <!-- Filter records between "From" and "To" Date Range -->
+                  <div style="display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                      <label for="schedule-date-from" style="font-size: 0.82rem; font-weight: 700; color: var(--text-dark); margin: 0;">From:</label>
+                      <input type="date" id="schedule-date-from" class="form-control form-control-sm" style="width: auto; height: 34px; font-size: 0.82rem; background: #ffffff;">
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                      <label for="schedule-date-to" style="font-size: 0.82rem; font-weight: 700; color: var(--text-dark); margin: 0;">To:</label>
+                      <input type="date" id="schedule-date-to" class="form-control form-control-sm" style="width: auto; height: 34px; font-size: 0.82rem; background: #ffffff;">
+                    </div>
+
+                    <button type="button" class="btn btn-sm btn-primary" id="btn-filter-date-range" onclick="app.applyScheduleDateFilter()" title="Filter Schedule by Date Range" style="height: 34px; font-size: 0.82rem; padding: 0.2rem 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                      <span>Filter</span>
+                    </button>
+
+                    <button type="button" class="btn btn-sm btn-secondary" id="btn-clear-date-range" onclick="app.clearScheduleDateFilter()" title="Clear Date Range Filter" style="height: 34px; font-size: 0.8rem; padding: 0.2rem 0.65rem;">
+                      Clear
+                    </button>
+                  </div>
+
+                </div>
+
+                <!-- Secondary Filters: Search, Type, Status -->
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem;">
+                  <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 260px;">
+                    <input type="text" id="schedule-search-input" class="form-control form-control-sm" placeholder="Search scheduled patient name, MRN, oncologist, regimen..." style="background: #ffffff;">
+                  </div>
+
+                  <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <select id="schedule-type-filter" class="select-control" style="font-size: 0.82rem; height: 32px; background: #ffffff;">
+                      <option value="all">All Types (Consults + Treatments + Labs)</option>
+                      <option value="consultation">🌿 Consultations Only</option>
+                      <option value="treatment">🟡 Treatments Only</option>
+                      <option value="laboratory">🧪 Laboratory &amp; Diagnostics Only</option>
+                    </select>
+
+                    <select id="schedule-status-filter" class="select-control" style="font-size: 0.82rem; height: 32px; background: #ffffff;">
+                      <option value="all">All Statuses</option>
+                      <option value="Scheduled">Scheduled</option>
+                      <option value="Checked-In">Checked In</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- Schedule Feed Container -->
+          <div id="schedule-timeline-container">
+            <!-- Dynamically populated grouped appointments -->
           </div>
         </section>
 
@@ -455,7 +621,7 @@
                 + Log Consultation
               </button>
               <button class="btn btn-success btn-sm" id="btn-chart-log-tx">
-                + Log Chemo Infusion
+                + Log Treatment
               </button>
               <button class="btn btn-secondary btn-sm" id="btn-chart-edit-patient">
                 Edit Patient Info
@@ -484,6 +650,7 @@
             <button class="tab-btn" data-chart-tab="consultations">🌿 Consultations & Clearances (<span id="chart-tab-consult-count">0</span>)</button>
             <button class="tab-btn" data-chart-tab="treatments">🟡 Chemo Treatments (<span id="chart-tab-tx-count">0</span>)</button>
             <button class="tab-btn" data-chart-tab="clinical-info">Clinical Profile & Vitals</button>
+            <button class="tab-btn" data-chart-tab="documents">📎 Uploaded Documents (<span id="chart-tab-doc-count">0</span>)</button>
           </div>
 
           <!-- Chart Tab Panes -->
@@ -541,7 +708,7 @@
                 <div style="font-size: 0.78rem; color: #854d0e;">Documented antineoplastic cycles, dual independent nurse verifications, and acute tolerance grading</div>
               </div>
               <button class="btn btn-sm btn-primary" onclick="app.openNewTxModal()" style="background: #eab308; border-color: #ca8a04; color: #713f12;">
-                + Log Chemo Infusion
+                + Log Treatment
               </button>
             </div>
             <div id="chart-treatments-container">
@@ -557,6 +724,41 @@
               <div class="panel-body" id="chart-profile-details">
                 <!-- Comprehensive demographics & clinical notes -->
               </div>
+            </div>
+          </div>
+
+          <!-- Documents Tab Pane -->
+          <div id="chart-pane-documents" class="tab-pane">
+            <div class="doc-upload-box" id="chart-doc-dropzone">
+              <input type="file" id="patient-chart-file-input" multiple style="display: none;" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.csv,.doc,.docx" />
+              <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">📁</div>
+              <h4 style="margin: 0 0 0.35rem 0; font-size: 1.05rem;">Upload Patient Clinical Documents</h4>
+              <p style="margin: 0 0 1rem 0; font-size: 0.85rem; color: var(--text-muted);">
+                Drag and drop lab reports, pathology slides, histology summaries, imaging scans (PDF, PNG, JPG, TXT) or browse files
+              </p>
+              <div style="display: flex; gap: 0.75rem; align-items: center; justify-content: center; flex-wrap: wrap;">
+                <select id="patient-chart-doc-category" class="select-control" style="width: auto; min-width: 180px; background: #ffffff;">
+                  <option value="Lab & Pathology Report">Lab & Pathology Report</option>
+                  <option value="CT / MRI / PET Scan">CT / MRI / PET Scan</option>
+                  <option value="Biopsy & Histology">Biopsy & Histology</option>
+                  <option value="Physician Clearance Note">Physician Clearance Note</option>
+                  <option value="Consent & Insurance">Consent & Insurance Form</option>
+                  <option value="General Clinical Document" selected>General Clinical Document</option>
+                </select>
+                <button type="button" class="btn btn-primary" id="btn-chart-browse-docs">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                  Browse Files
+                </button>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin: 1.25rem 0 0.75rem 0; flex-wrap: wrap; gap: 0.5rem;">
+              <strong id="chart-doc-summary-text" style="font-size: 0.92rem; color: var(--text-dark);">0 Documents Attached</strong>
+              <span style="font-size: 0.78rem; color: var(--text-muted);">All uploaded documents are securely stored in your local clinical database</span>
+            </div>
+
+            <div id="patient-chart-docs-container">
+              <!-- Dynamically populated document cards -->
             </div>
           </div>
         </section>
@@ -623,16 +825,16 @@
           </div>
         </section>
 
-        <!-- 5. CHEMO INFUSIONS VIEW -->
+        <!-- 5. TREATMENTS VIEW -->
         <section id="view-treatments" class="view-section">
           <div class="view-header">
             <div class="view-title-group">
-              <h2>Chemotherapy Infusion Logs</h2>
-              <p>Track administered regimens, cycles, premeds, dual nurse verifications, and infusion safety</p>
+              <h2>Treatments</h2>
+              <p>Track administered regimens, cycles, premeds, dual nurse verifications, and treatment safety</p>
             </div>
             <button class="btn btn-primary" id="btn-add-tx-main">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              <span>+ Log Chemo Treatment</span>
+              <span>+ Log Treatment</span>
             </button>
           </div>
 
@@ -686,7 +888,115 @@
           </div>
         </section>
 
-        <!-- 6. REPORTS & ANALYTICS VIEW -->
+        <!-- 6. LABORATORY & DIAGNOSTICS VIEW -->
+        <section id="view-laboratory" class="view-section">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h2>Oncology Laboratory & Diagnostics</h2>
+              <p>Pre-chemotherapy clearances, CBC hematology with ANC & platelets, chemistry panels, tumor markers & pathology reports</p>
+            </div>
+            <button class="btn btn-primary" id="btn-add-lab-main" style="background: #0284c7; border-color: #0369a1;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span>+ Log Lab Result</span>
+            </button>
+          </div>
+
+          <!-- Laboratory Metrics Strip -->
+          <div class="stats-grid" style="margin-bottom: 1.25rem;">
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>Total Lab Tests</p>
+                <h3 id="stat-lab-total" style="color: #0284c7;">0</h3>
+                <div class="stat-subtext">Diagnostic evaluations</div>
+              </div>
+              <div class="stat-icon blue" style="background: #e0f2fe; color: #0284c7;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2v7.31L4.36 19.46A2 2 0 0 0 6.11 22h11.78a2 2 0 0 0 1.75-2.54L14 9.31V2"></path><path d="M8.5 2h7"></path></svg>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>Critical / Low ANC Alerts</p>
+                <h3 id="stat-lab-alerts" style="color: #dc2626;">0</h3>
+                <div class="stat-subtext">ANC &lt; 1.5 or Plt &lt; 100</div>
+              </div>
+              <div class="stat-icon red" style="background: #fee2e2; color: #dc2626;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>Cleared for Chemo</p>
+                <h3 id="stat-lab-cleared" style="color: #16a34a;">0</h3>
+                <div class="stat-subtext">Safe lab thresholds verified</div>
+              </div>
+              <div class="stat-icon green" style="background: #dcfce7; color: #16a34a;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>Recent Tests (7 Days)</p>
+                <h3 id="stat-lab-recent">0</h3>
+                <div class="stat-subtext">Current cycle monitoring</div>
+              </div>
+              <div class="stat-icon purple" style="background: #f3e8ff; color: #7e22ce;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Laboratory Toolbar & Filter -->
+          <div class="panel" style="margin-bottom: 1.25rem; border-top: 4px solid #0284c7; background: #f0f9ff; border-color: #bae6fd;">
+            <div class="panel-body" style="padding: 1rem 1.25rem;">
+              <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+                  <div style="display: flex; align-items: center; gap: 0.65rem; flex: 1; min-width: 260px;">
+                    <input type="text" id="lab-search-filter" class="form-control form-control-sm" placeholder="Search patient name, MRN, lab panel, ordering doctor..." style="background: #ffffff;">
+                  </div>
+
+                  <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <select id="lab-patient-filter" class="select-control" style="font-size: 0.82rem; height: 34px; background: #ffffff;">
+                      <option value="">All Patients</option>
+                      <!-- Populated dynamically -->
+                    </select>
+
+                    <select id="lab-category-filter" class="select-control" style="font-size: 0.82rem; height: 34px; background: #ffffff;">
+                      <option value="all">All Lab Categories</option>
+                      <option value="Complete Blood Count (CBC)">Hematology / CBC w/ ANC</option>
+                      <option value="Comprehensive Chemistry Panel">Chemistry / Organ Clearance</option>
+                      <option value="Tumor Markers">Tumor Markers (CEA, CA-125, PSA)</option>
+                      <option value="Pathology & Biopsy">Pathology &amp; Biopsy</option>
+                      <option value="Coagulation & Urinalysis">Coagulation &amp; Urinalysis</option>
+                    </select>
+
+                    <select id="lab-status-filter" class="select-control" style="font-size: 0.82rem; height: 34px; background: #ffffff;">
+                      <option value="all">All Clearances</option>
+                      <option value="cleared">✅ Cleared for Chemotherapy</option>
+                      <option value="critical">⚠️ Critical / Low ANC / Hold Chemo</option>
+                      <option value="normal">Normal / Standard Monitoring</option>
+                    </select>
+
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="app.resetLabFilters()" title="Reset Filters" style="height: 34px; font-size: 0.8rem; padding: 0.2rem 0.65rem;">
+                      Reset
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- Laboratory Feed / Table Container -->
+          <div id="laboratory-list-container">
+            <!-- Dynamically populated lab results -->
+          </div>
+        </section>
+
+        <!-- 7. REPORTS & ANALYTICS VIEW -->
         <section id="view-reports" class="view-section">
           <div class="view-header">
             <div class="view-title-group">
@@ -1212,6 +1522,30 @@
               <input type="text" id="patient-comorbidities" name="patient-comorbidities" class="form-control" placeholder="e.g. Hypertension, Type 2 Diabetes, Mild Neuropathy">
             </div>
 
+            <!-- Clinical Document Attachments -->
+            <div class="form-group col-span-2" style="border-top: 1px dashed var(--border); padding-top: 1rem; margin-top: 0.5rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                <label class="form-label" style="margin-bottom: 0; font-weight: 700; color: var(--primary);">
+                  📎 Attach Clinical Documents (PDF, Scans, Labs)
+                </label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <select id="modal-patient-doc-category" class="select-control" style="font-size: 0.78rem; padding: 0.25rem 0.5rem; height: auto;">
+                    <option value="Lab & Pathology Report">Lab & Pathology Report</option>
+                    <option value="CT / MRI / PET Scan">CT / MRI / PET Scan</option>
+                    <option value="Biopsy & Histology">Biopsy & Histology</option>
+                    <option value="Clinical Summary" selected>Clinical Summary</option>
+                  </select>
+                  <input type="file" id="modal-patient-file-input" multiple style="display: none;" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.csv,.doc,.docx" />
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="btn-modal-patient-add-doc">
+                    + Choose Files
+                  </button>
+                </div>
+              </div>
+              <div id="modal-patient-docs-list" class="doc-attachment-list">
+                <!-- Attached files preview -->
+              </div>
+            </div>
+
           </div>
         </div>
         <div class="modal-footer">
@@ -1409,6 +1743,29 @@
               <input type="date" id="consult-next-date" name="consult-next-date" class="form-control">
             </div>
 
+            <!-- Consultation Document Attachments -->
+            <div class="form-group col-span-2" style="border-top: 1px dashed var(--border); padding-top: 1rem; margin-top: 0.5rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                <label class="form-label" style="margin-bottom: 0; font-weight: 700; color: #15803d;">
+                  📎 Attach Consultation Documents (Lab Slips, Clearance Notes)
+                </label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <select id="modal-consult-doc-category" class="select-control" style="font-size: 0.78rem; padding: 0.25rem 0.5rem; height: auto;">
+                    <option value="Lab Report" selected>Lab Report</option>
+                    <option value="Clearance Note">Clearance Note</option>
+                    <option value="Oncology Summary">Oncology Summary</option>
+                  </select>
+                  <input type="file" id="modal-consult-file-input" multiple style="display: none;" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.csv,.doc,.docx" />
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="btn-modal-consult-add-doc" style="border-color: #16a34a; color: #16a34a;">
+                    + Choose Files
+                  </button>
+                </div>
+              </div>
+              <div id="modal-consult-docs-list" class="doc-attachment-list">
+                <!-- Attached files preview -->
+              </div>
+            </div>
+
           </div>
         </div>
         <div class="modal-footer">
@@ -1473,12 +1830,12 @@
 
             <div class="form-group">
               <label class="form-label" for="tx-cycle-num">Cycle Number <span class="required">*</span></label>
-              <input type="number" id="tx-cycle-num" name="tx-cycle-num" class="form-control" required placeholder="e.g. 4" min="1">
+              <input type="text" id="tx-cycle-num" name="tx-cycle-num" class="form-control" required placeholder="e.g. 4, 4A, or C1D1">
             </div>
 
             <div class="form-group">
               <label class="form-label" for="tx-cycle-total">Planned Cycles Total</label>
-              <input type="number" id="tx-cycle-total" name="tx-cycle-total" class="form-control" placeholder="e.g. 8" min="1">
+              <input type="text" id="tx-cycle-total" name="tx-cycle-total" class="form-control" placeholder="e.g. 8, 8B, or 12">
             </div>
 
             <div class="form-group">
@@ -1581,11 +1938,201 @@
               <textarea id="tx-adverse-notes" class="form-control" rows="2" placeholder="e.g. Infusion well tolerated. No extravasation. Discharged ambulatory with oral antiemetic instructions."></textarea>
             </div>
 
+            <!-- Treatment Infusion Document Attachments -->
+            <div class="form-group col-span-2" style="border-top: 1px dashed var(--border); padding-top: 1rem; margin-top: 0.5rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                <label class="form-label" style="margin-bottom: 0; font-weight: 700; color: #a16207;">
+                  📎 Attach Infusion Documents (Flow Sheets, Dual Check Slips)
+                </label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <select id="modal-tx-doc-category" class="select-control" style="font-size: 0.78rem; padding: 0.25rem 0.5rem; height: auto;">
+                    <option value="Infusion Flow Sheet" selected>Infusion Flow Sheet</option>
+                    <option value="Dual Check Verification">Dual Check Verification</option>
+                    <option value="Vital Signs Log">Vital Signs Log</option>
+                  </select>
+                  <input type="file" id="modal-tx-file-input" multiple style="display: none;" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.csv,.doc,.docx" />
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="btn-modal-tx-add-doc" style="border-color: #ca8a04; color: #a16207;">
+                    + Choose Files
+                  </button>
+                </div>
+              </div>
+              <div id="modal-tx-docs-list" class="doc-attachment-list">
+                <!-- Attached files preview -->
+              </div>
+            </div>
+
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-close-modal="modal-treatment">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btn-save-tx">Save Treatment Infusion Log</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3.5. Laboratory Result Modal -->
+  <div class="modal-backdrop" id="modal-laboratory">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: white;">
+        <h3 class="modal-title" id="modal-lab-title" style="color: white; display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2v7.31L4.36 19.46A2 2 0 0 0 6.11 22h11.78a2 2 0 0 0 1.75-2.54L14 9.31V2"></path><path d="M8.5 2h7"></path></svg>
+          <span id="modal-lab-title-text">Log Diagnostic Laboratory Result</span>
+        </h3>
+        <button class="modal-close-btn" data-close-modal="modal-laboratory" style="color: white;">&times;</button>
+      </div>
+      <form id="form-laboratory">
+        <input type="hidden" id="lab-edit-id" name="lab-edit-id">
+        <div class="modal-body">
+          <div class="form-grid">
+
+            <div class="form-section-heading">Patient &amp; Test Overview</div>
+
+            <div class="form-group col-span-2">
+              <label for="lab-form-patient-select" class="form-label required">Select Patient</label>
+              <select id="lab-form-patient-select" name="patientId" class="select-control" required>
+                <option value="">-- Choose Oncology Patient --</option>
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-date" class="form-label required">Specimen / Collection Date</label>
+              <input type="date" id="lab-form-date" name="testDate" class="input-control" required>
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-time" class="form-label">Collection Time</label>
+              <input type="time" id="lab-form-time" name="testTime" class="input-control" value="08:00">
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-category" class="form-label required">Test Category</label>
+              <select id="lab-form-category" name="category" class="select-control" required>
+                <option value="Complete Blood Count (CBC)">Hematology / CBC w/ ANC &amp; Platelets</option>
+                <option value="Comprehensive Chemistry Panel">Chemistry / Organ Clearance (Renal &amp; Liver)</option>
+                <option value="Tumor Markers">Tumor Markers (CEA, CA-125, PSA, etc.)</option>
+                <option value="Pathology & Biopsy">Pathology &amp; Biopsy Report</option>
+                <option value="Coagulation & Urinalysis">Coagulation Profile &amp; Urinalysis</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-test-name" class="form-label required">Test Panel Name</label>
+              <input type="text" id="lab-form-test-name" name="testName" class="input-control" placeholder="e.g. CBC with Absolute Neutrophil Count & Platelet Differential" required>
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-doctor" class="form-label">Ordering Oncologist</label>
+              <input type="text" id="lab-form-doctor" name="orderingPhysician" class="input-control" placeholder="e.g. Dr. Evelyn Reed, MD">
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-facility" class="form-label">Performing Laboratory / Unit</label>
+              <input type="text" id="lab-form-facility" name="performingFacility" class="input-control" value="Imus Cancer Center Clinical Diagnostic Laboratory">
+            </div>
+
+            <div class="form-section-heading">Key Clinical Parameters &amp; Thresholds</div>
+
+            <div class="form-group">
+              <label for="lab-form-anc" class="form-label" style="display: flex; justify-content: space-between;">
+                <span>ANC (x10⁹/L)</span>
+                <span style="font-size: 0.72rem; color: #166534; font-weight: 600;">Safe: ≥ 1.5</span>
+              </label>
+              <input type="number" step="0.01" id="lab-form-anc" name="anc" class="input-control" placeholder="e.g. 2.10">
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-platelets" class="form-label" style="display: flex; justify-content: space-between;">
+                <span>Platelets (x10⁹/L)</span>
+                <span style="font-size: 0.72rem; color: #166534; font-weight: 600;">Safe: ≥ 100</span>
+              </label>
+              <input type="number" step="1" id="lab-form-platelets" name="platelets" class="input-control" placeholder="e.g. 240">
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-wbc" class="form-label">WBC (x10⁹/L)</label>
+              <input type="number" step="0.1" id="lab-form-wbc" name="wbc" class="input-control" placeholder="e.g. 5.6">
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-hemoglobin" class="form-label">Hemoglobin (g/dL)</label>
+              <input type="number" step="0.1" id="lab-form-hemoglobin" name="hemoglobin" class="input-control" placeholder="e.g. 12.4">
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-creatinine" class="form-label" style="display: flex; justify-content: space-between;">
+                <span>Creatinine (mg/dL)</span>
+                <span style="font-size: 0.72rem; color: var(--text-muted);">Normal: 0.6 - 1.2</span>
+              </label>
+              <input type="number" step="0.01" id="lab-form-creatinine" name="creatinine" class="input-control" placeholder="e.g. 0.85">
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-alt" class="form-label">SGPT / ALT (U/L)</label>
+              <input type="number" step="1" id="lab-form-alt" name="alt" class="input-control" placeholder="e.g. 24">
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-ast" class="form-label">SGOT / AST (U/L)</label>
+              <input type="number" step="1" id="lab-form-ast" name="ast" class="input-control" placeholder="e.g. 22">
+            </div>
+
+            <div class="form-group">
+              <label for="lab-form-tumor-marker" class="form-label">Tumor Marker / Specific Value</label>
+              <input type="text" id="lab-form-tumor-marker" name="tumorMarker" class="input-control" placeholder="e.g. CEA: 2.1 ng/mL | CA-125: 14 U/mL">
+            </div>
+
+            <div class="form-section-heading">Clinical Evaluation &amp; Clearance</div>
+
+            <div class="form-group col-span-2">
+              <label for="lab-form-clearance" class="form-label required">Chemotherapy Clearance Decision</label>
+              <select id="lab-form-clearance" name="clearanceStatus" class="select-control" required>
+                <option value="Cleared for Chemotherapy">✅ Cleared for Chemotherapy (ANC ≥ 1.5, Platelets ≥ 100)</option>
+                <option value="Critical - Hold Chemotherapy">⚠️ Critical Cytopenia - Hold Chemotherapy (ANC &lt; 1.5 or Plt &lt; 100)</option>
+                <option value="Dose Adjustment Advised">⚠️ Dose Adjustment Advised (Borderline Organ Function)</option>
+                <option value="Normal - Within Limits">🧪 Normal / Routine Monitoring</option>
+              </select>
+            </div>
+
+            <div class="form-group col-span-2">
+              <label for="lab-form-remarks" class="form-label">Technologist Remarks &amp; Interpretation</label>
+              <textarea id="lab-form-remarks" name="remarks" class="textarea-control" rows="2" placeholder="Clinical notes, CBC differential notes, morphology review, or physician communication..."></textarea>
+            </div>
+
+            <!-- Upload Documents Section for Laboratory -->
+            <div class="form-section-heading">Attached Scanned Lab Slips &amp; PDF Reports</div>
+            
+            <div class="col-span-2" style="background: var(--bg-surface); padding: 1rem; border-radius: 8px; border: 1px dashed var(--border);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-dark);">Attached Documents (PDFs, Images, Scans)</span>
+                
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <select id="modal-lab-doc-category" class="select-control" style="font-size: 0.78rem; padding: 0.25rem 0.5rem; height: auto;">
+                    <option value="CBC Hematology Report">CBC Hematology Report</option>
+                    <option value="Chemistry / Organ Panel">Chemistry / Organ Panel</option>
+                    <option value="Pathology / Biopsy">Pathology / Biopsy</option>
+                    <option value="Tumor Marker Result">Tumor Marker Result</option>
+                    <option value="Diagnostic Slip">Diagnostic Slip</option>
+                  </select>
+                  <input type="file" id="modal-lab-file-input" multiple style="display: none;" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.csv,.doc,.docx" />
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-modal-lab-add-doc" style="font-size: 0.78rem; padding: 0.3rem 0.65rem;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>+ Attach File</span>
+                  </button>
+                </div>
+              </div>
+
+              <div id="modal-lab-docs-list" class="doc-attachment-list">
+                <!-- Attached files preview -->
+              </div>
+            </div>
+
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="modal-laboratory">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-lab" style="background: #0284c7; border-color: #0369a1;">Save Laboratory Record</button>
         </div>
       </form>
     </div>
@@ -1703,6 +2250,257 @@
             <span>Edit Record</span>
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Clinical Document Viewer & Preview Modal -->
+  <div class="modal-backdrop" id="modal-view-document" style="z-index: 100000;">
+    <div class="modal-dialog modal-lg" style="max-width: 900px; max-height: 92vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #1e293b, #0f172a); color: white;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0; overflow: hidden;">
+          <span id="modal-view-doc-icon" style="font-size: 1.5rem; flex-shrink: 0;">📄</span>
+          <div style="min-width: 0;">
+            <h3 class="modal-title" id="modal-view-doc-title" style="color: white; margin: 0; font-size: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Clinical Document Preview</h3>
+            <div id="modal-view-doc-sub" style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;"></div>
+          </div>
+        </div>
+        <button class="modal-close-btn" style="color: white;" data-close-modal="modal-view-document">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-view-doc-body" style="padding: 0; flex: 1; overflow: hidden; display: flex; flex-direction: column; background: #0b1120; min-height: 480px;">
+        <!-- Embedded viewer rendering -->
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" class="btn btn-ghost" style="color: var(--danger);" id="modal-view-doc-delete-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <span>Delete Document</span>
+        </button>
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn btn-secondary" data-close-modal="modal-view-document">Close</button>
+          <button type="button" class="btn btn-primary" id="modal-view-doc-download-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            <span>Download Original File</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. Schedule Clinical Appointment Modal -->
+  <div class="modal-backdrop" id="modal-schedule-appointment">
+    <div class="modal-dialog" style="max-width: 650px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #096ca7, #0284c7); color: white;">
+        <h3 class="modal-title" id="modal-schedule-title" style="color: white; display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          <span id="modal-schedule-title-text">Schedule Clinical Appointment</span>
+        </h3>
+        <button class="modal-close-btn" style="color: white;" data-close-modal="modal-schedule-appointment">&times;</button>
+      </div>
+
+      <form id="form-schedule-appointment">
+        <input type="hidden" id="sch-id" name="sch-id" value="">
+        <div class="modal-body" style="padding: 1.5rem; max-height: 75vh; overflow-y: auto;">
+          <div class="form-grid">
+
+            <!-- Type of Appointment -->
+            <div class="form-group col-span-2">
+              <label class="form-label" style="font-weight: 700;">Appointment Type <span class="required">*</span></label>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+                <label class="schedule-type-radio-box" id="lbl-sch-type-consult">
+                  <input type="radio" name="sch-type" value="consultation" checked style="accent-color: #16a34a;">
+                  <div>
+                    <strong style="color: #166534; display: block;">🌿 Consultation &amp; Clearance</strong>
+                    <span style="font-size: 0.75rem; color: #4b5563;">Physical evaluation, labs review, clearance</span>
+                  </div>
+                </label>
+                <label class="schedule-type-radio-box" id="lbl-sch-type-treatment">
+                  <input type="radio" name="sch-type" value="treatment" style="accent-color: #ca8a04;">
+                  <div>
+                    <strong style="color: #854d0e; display: block;">🟡 Chemotherapy Treatment</strong>
+                    <span style="font-size: 0.75rem; color: #4b5563;">Antineoplastic infusion cycle</span>
+                  </div>
+                </label>
+                <label class="schedule-type-radio-box" id="lbl-sch-type-laboratory">
+                  <input type="radio" name="sch-type" value="laboratory" style="accent-color: #0284c7;">
+                  <div>
+                    <strong style="color: #0369a1; display: block;">🧪 Laboratory &amp; Diagnostics</strong>
+                    <span style="font-size: 0.75rem; color: #4b5563;">Blood extraction, CBC, chemistry, tumor markers</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Patient Selection -->
+            <div class="form-group col-span-2" style="position: relative;">
+              <label class="form-label" for="sch-patient-search">Select Patient <span class="required">*</span></label>
+              <input type="text" id="sch-patient-search" class="form-control" placeholder="Search patient name or MRN (e.g. Maria, ICC-P001)..." autocomplete="off">
+              <input type="hidden" id="sch-patient-select" name="sch-patient-select" required>
+              <div id="sch-search-results" class="search-dropdown-menu" style="display: none;"></div>
+              
+              <div id="sch-selected-patient-preview" style="display: none; margin-top: 0.6rem; padding: 0.65rem 0.85rem; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <strong id="sch-preview-name" style="color: #14532d; font-size: 0.92rem;"></strong>
+                    <span id="sch-preview-mrn" class="patient-mrn" style="margin-left: 0.4rem;"></span>
+                    <div id="sch-preview-diag" style="font-size: 0.78rem; color: #166534; margin-top: 2px;"></div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-ghost" id="btn-sch-clear-patient" style="color: #dc2626; font-size: 0.8rem;">Change</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Date & Time -->
+            <div class="form-group">
+              <label class="form-label" for="sch-date">Scheduled Date <span class="required">*</span></label>
+              <input type="date" id="sch-date" name="sch-date" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="sch-time">Scheduled Time <span class="required">*</span></label>
+              <input type="time" id="sch-time" name="sch-time" class="form-control" required value="09:00">
+            </div>
+
+            <!-- Station / Location -->
+            <div class="form-group">
+              <label class="form-label" for="sch-station">Station / Room Assignment</label>
+              <select id="sch-station" name="sch-station" class="form-control">
+                <option value="Consultation Exam Room 1">Consultation Exam Room 1</option>
+                <option value="Consultation Exam Room 2">Consultation Exam Room 2</option>
+                <option value="Infusion Chair #1">Infusion Chair #1</option>
+                <option value="Infusion Chair #2">Infusion Chair #2</option>
+                <option value="Infusion Chair #3">Infusion Chair #3</option>
+                <option value="Infusion Chair #4">Infusion Chair #4</option>
+                <option value="Infusion Bed #1 (Private)">Infusion Bed #1 (Private)</option>
+                <option value="Laboratory Phlebotomy Station 1">Laboratory Phlebotomy Station 1</option>
+                <option value="Laboratory Diagnostic Unit">Laboratory Diagnostic Unit</option>
+              </select>
+            </div>
+
+            <!-- Status -->
+            <div class="form-group">
+              <label class="form-label" for="sch-status">Appointment Status</label>
+              <select id="sch-status" name="sch-status" class="form-control">
+                <option value="Scheduled" selected>Scheduled</option>
+                <option value="Checked-In">Checked In</option>
+                <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+
+            <!-- Attending Oncologist -->
+            <div class="form-group">
+              <label class="form-label" for="sch-oncologist">Attending Oncologist</label>
+              <input type="text" id="sch-oncologist" name="sch-oncologist" class="form-control" placeholder="e.g. Dr. Evelyn Reed, MD">
+            </div>
+
+            <!-- Supervising Nurse / Staff -->
+            <div class="form-group">
+              <label class="form-label" for="sch-nurse">Assigned Staff / Nurse</label>
+              <input type="text" id="sch-nurse" name="sch-nurse" class="form-control" placeholder="e.g. Nurse Sarah Jenkins, RN">
+            </div>
+
+            <!-- Regimen & Cycle (dynamic for treatment) -->
+            <div class="form-group col-span-2" id="sch-treatment-fields" style="display: none; background: #fefce8; border: 1px solid #fde047; padding: 0.75rem 1rem; border-radius: 8px;">
+              <strong style="color: #854d0e; font-size: 0.85rem; display: block; margin-bottom: 0.5rem;">Treatment Protocol Details:</strong>
+              <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.5rem;">
+                <div>
+                  <label class="form-label" for="sch-regimen" style="font-size: 0.75rem;">Regimen</label>
+                  <input type="text" id="sch-regimen" name="sch-regimen" class="form-control form-control-sm" placeholder="e.g. mFOLFOX6, AC-T">
+                </div>
+                <div>
+                  <label class="form-label" for="sch-cycle-num" style="font-size: 0.75rem;">Cycle #</label>
+                  <input type="text" id="sch-cycle-num" name="sch-cycle-num" class="form-control form-control-sm" placeholder="e.g. 4 or 4A">
+                </div>
+                <div>
+                  <label class="form-label" for="sch-cycle-total" style="font-size: 0.75rem;">Total</label>
+                  <input type="text" id="sch-cycle-total" name="sch-cycle-total" class="form-control form-control-sm" placeholder="e.g. 8">
+                </div>
+              </div>
+            </div>
+
+            <!-- Purpose / Reason -->
+            <div class="form-group col-span-2">
+              <label class="form-label" for="sch-reason">Appointment Purpose / Clinical Objectives</label>
+              <input type="text" id="sch-reason" name="sch-reason" class="form-control" placeholder="e.g. Pre-chemo lab review & clearance for Cycle 4, or 3-hour IV Taxol infusion">
+            </div>
+
+            <!-- Special Instructions / Notes -->
+            <div class="form-group col-span-2">
+              <label class="form-label" for="sch-notes">Special Instructions & Preparation Notes</label>
+              <textarea id="sch-notes" name="sch-notes" class="form-control" rows="2" placeholder="e.g. Bring updated CBC and LFT results from outside lab. Take oral dexamethasone 20mg at 6:00 AM."></textarea>
+            </div>
+
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="modal-schedule-appointment">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-schedule">Save Appointment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tomorrow's Schedule Reminder Pop-Up Modal -->
+  <div class="modal-backdrop" id="modal-tomorrow-reminder" style="z-index: 99999;">
+    <div class="modal-dialog modal-lg" style="max-width: 840px; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-content" style="display: flex; flex-direction: column; max-height: 90vh; border-radius: 12px; overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border); box-shadow: 0 20px 40px rgba(0,0,0,0.25);">
+        
+        <!-- Modal Header -->
+        <div class="modal-header" style="background: linear-gradient(135deg, #1e3a8a, #0284c7); color: #ffffff; padding: 1.15rem 1.5rem; display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+              🔔
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <h3 style="margin: 0; color: #ffffff; font-size: 1.25rem; font-weight: 700;">Tomorrow's Schedule Reminder</h3>
+                <span class="badge" style="background: #fef08a; color: #854d0e; font-size: 0.72rem; font-weight: 800; padding: 2px 8px;">CLINICAL REMINDER</span>
+              </div>
+              <p style="margin: 3px 0 0 0; font-size: 0.84rem; color: #e0f2fe;" id="reminder-modal-date-label">
+                Patient consultations and chemotherapy infusions scheduled for tomorrow
+              </p>
+            </div>
+          </div>
+          <button type="button" class="btn-close" data-close-modal="modal-tomorrow-reminder" style="color: #ffffff; opacity: 0.85; font-size: 1.6rem; background: none; border: none; cursor: pointer; line-height: 1;" title="Close Reminder">&times;</button>
+        </div>
+
+        <!-- Metric Summary Bar -->
+        <div style="background: #f8fafc; border-bottom: 1px solid var(--border); padding: 0.75rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+          <div style="display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap;">
+            <span style="font-size: 0.88rem; font-weight: 700; color: var(--text-dark);" id="reminder-modal-count-summary">3 Patients Scheduled</span>
+            <span class="badge" style="background: #f0fdf4; color: #166534; border: 1px solid #86efac; font-weight: 700; font-size: 0.78rem;" id="reminder-modal-consult-count">🌿 1 Consultation</span>
+            <span class="badge" style="background: #fefce8; color: #854d0e; border: 1px solid #fde047; font-weight: 700; font-size: 0.78rem;" id="reminder-modal-tx-count">🟡 2 Treatments</span>
+            <span class="badge" style="background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; font-weight: 700; font-size: 0.78rem;" id="reminder-modal-lab-count">🧪 0 Laboratory</span>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="button" class="btn btn-sm btn-outline" id="btn-print-tomorrow-reminder" style="font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+              <span>Print Call Sheet</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Modal Body: Scrollable Patient Cards List -->
+        <div class="modal-body" id="reminder-modal-patient-list" style="padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1; max-height: calc(85vh - 200px);">
+          <!-- Dynamically populated patient reminder cards -->
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="modal-footer" style="padding: 0.85rem 1.5rem; background: var(--bg-surface); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+          <label style="display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; color: var(--text-muted); cursor: pointer; user-select: none;">
+            <input type="checkbox" id="chk-reminder-dismiss-today" style="cursor: pointer; accent-color: var(--primary);">
+            <span>Don't show automatically again today</span>
+          </label>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="button" class="btn btn-secondary" id="btn-reminder-go-to-schedule">
+              Go to Full Schedule
+            </button>
+            <button type="button" class="btn btn-primary" data-close-modal="modal-tomorrow-reminder">
+              Acknowledge & Close
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
